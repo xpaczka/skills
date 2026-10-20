@@ -7,11 +7,13 @@ argument-hint: "[url] [path]"
 
 # web-ready-audit
 
-You audit one website or web app for launch readiness: the things that are easy to forget (crawl directives, canonicals, sitemaps, previews) and the things set up wrong. You read the source, inspect what the site actually serves, and report findings in chat. The report is the deliverable.
+You audit one website or web app for launch readiness: the things that are easy to forget (crawl directives, canonicals, sitemaps, previews) and the things set up wrong. You read the source, build it, inspect what the site actually serves, and report findings in chat. The report is the deliverable.
+
+The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, Rails, PHP, plain HTML, or one never seen before): find what produces the HTML head, how the project builds and serves, and where static files and headers come from, then audit the output.
 
 ## Hard rules
 
-- **Report only.** Read project files; leave every one of them as it is. Fixes go in the report as one-line suggestions.
+- **Report only.** Read project files; leave every one of them as it is. Fixes go in the report as one-line suggestions. The only writes are the build's own output and a dependency install the user approved.
 - **Read-only GETs.** Every live request is a GET. Before the first probe run, tell the user which URLs and paths you will request. No POSTs, form submissions or logins.
 - **Raw HTML.** Judge the HTML the server sends, the way crawlers and link-preview scrapers see it. A tag that only appears after client-side JavaScript runs is absent.
 - **Evidence and a fix.** Every finding cites a `file:line` or a URL, and gives a one-line fix.
@@ -25,19 +27,22 @@ You audit one website or web app for launch readiness: the things that are easy 
 
 ## Run
 
-1. **Arguments.** `[url]` is an argument starting with `http://` or `https://`, or a bare host such as `example.com`. `[path]` is the project folder, default the current directory.
-2. **Target.** A URL argument is the live site to inspect. Without one, ask the user for the production URL (the local-build layer is not written yet).
-3. **Source.** In `[path]`, find what produces the HTML head (layouts, `index.html`, head or metadata APIs), robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title`, `lang=`, `og:`, `twitter:`, `icon`, `manifest` and `ld+json`. Keep each hit's `file:line` for the findings.
-4. **Requests.** Tell the user what the run will GET: robots.txt, the sitemaps, each page, each canonical target that differs from its page, DNS TXT records for the host, each preview image, the icons and manifest, and the homepage again as `facebookexternalhit` and `Twitterbot`.
-5. **Homepage.** Run the probe on the target ([PROBE.md](PROBE.md)).
-6. **Pages.** Take candidates from `sites[].sitemap.urls`, else the homepage's `html.internalLinks`, plus the routes in the source. Under 15 candidates, check them all; otherwise check one page per route template (same path shape, one varying segment), at most 25. Run the probe on them with `--pages-only`.
-7. **Judge.** Apply every rule in the checks file of each category below. Done when every rule has a verdict: a finding, a pass, or "not verifiable" with the reason.
-8. **Report** in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md).
+1. **Arguments.** `[url]` is an argument starting with `http://` or `https://`, or a bare host such as `example.com`. `[path]` is the app folder, default the current directory.
+2. **Discover** ([DISCOVER.md](DISCOVER.md)): the app (ask when a monorepo holds several), the four questions, the declared and installed runtime, the tools, and the target URL by precedence.
+3. **Source.** In the app, find the files behind the head, robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title`, `lang=`, `og:`, `twitter:`, `icon`, `manifest` and `ld+json`. Keep each hit's `file:line` for the findings.
+4. **Build** the app, then typecheck and lint when it has them ([DISCOVER.md](DISCOVER.md#build)). With dependencies missing, ask once before a frozen install.
+5. **Runtime.** A target URL is the live site. Without one, serve the build on a free port and use `http://localhost:<port>` ([DISCOVER.md](DISCOVER.md#serve-locally)).
+6. **Requests.** Tell the user what the run will GET: robots.txt, the sitemaps, each page, each canonical target that differs from its page, DNS TXT records for the host, each preview image, the icons and manifest, and the homepage again as `facebookexternalhit` and `Twitterbot`.
+7. **Homepage.** Run the probe on the target ([PROBE.md](PROBE.md)).
+8. **Pages.** Take candidates from `sites[].sitemap.urls`, else the homepage's `html.internalLinks`, plus the routes in the source. Under 15 candidates, check them all; otherwise check one page per route template (same path shape, one varying segment), at most 25. Run the probe on them with `--pages-only`. Then stop a local server.
+9. **Judge.** Apply every rule in the checks file of each category below; a local run also follows [DISCOVER.md](DISCOVER.md#judging-local-output). Done when every rule has a verdict: a finding, a pass, "not verifiable" or "not verified locally", with the reason.
+10. **Report** in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md).
 
 ## Check categories
 
 | Category | Rules |
 |---|---|
+| Build and runtime | [DISCOVER.md](DISCOVER.md) (build failures, runtime drift, URL sources) |
 | Crawlability and SEO | [CHECKS-CRAWL.md](CHECKS-CRAWL.md) |
 | Social previews | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
 | Icons and manifest | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
@@ -48,4 +53,5 @@ You audit one website or web app for launch readiness: the things that are easy 
 | If the environment has… | do | else |
 |---|---|---|
 | `node` 22 or later, `bun` or `deno` | run `scripts/probe.mjs` | gather the PROBE.md fact list with `curl` or `wget`, else the harness's web fetch; mark facts no tool can get as unverified |
+| background commands | start the local server in the background and stop it by its handle | `<command> > <log> 2>&1 &`, keep `$!`, stop with `kill` |
 | a structured question UI | use it for multiple-choice questions | numbered plain-text questions |

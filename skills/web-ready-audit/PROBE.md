@@ -10,7 +10,7 @@ node scripts/probe.mjs --pages-only <url> [<url>...]
 ```
 
 - The first run (homepage) gathers site facts and page facts. `--pages-only` still reads robots.txt, so every page gets its robots verdict, but skips sitemaps, DNS and the homepage facts, and leaves `inSitemap` null: pages taken from the sitemap are in it by definition.
-- A bare host gets `https://`. Requests go one at a time, follow at most 10 redirects, and time out after 15 s each.
+- A bare host gets `https://`; pass a local server as `http://localhost:<port>`. Localhost and private-network URLs (canonical targets, images) are fetched only when the target itself is local; otherwise they are `skipped`. Requests go one at a time, follow at most 10 redirects, and time out after 15 s each.
 - A failed request becomes an `error` field on that fact, not a crash. Exit code 2 means no URL was given.
 
 ## Fact list
@@ -36,7 +36,7 @@ One entry per origin that robots.txt resolves to.
 - `xRobotsTag`: the `X-Robots-Tag` header. `canonicalHeader`: a `rel=canonical` in the `Link` header.
 - `robotsTxt`: `{ path, group, verdict, rule }` for Googlebot. The path is the final URL's on the same origin, the requested one after a cross-origin redirect.
 - `inSitemap`: the requested or final URL is among `sites[].sitemap.urls`. False can mean the sitemap was truncated.
-- `canonicalTarget`: when the first canonical differs from `finalUrl`, a GET of it: `status`, `finalUrl`, `redirects`. A localhost or private-network target is `skipped`, not fetched.
+- `canonicalTarget`: when the first canonical differs from `finalUrl`, a GET of it: `status`, `finalUrl`, `redirects`. A localhost or private-network target is `skipped`.
 - `html` (HTML responses only), read from the raw response with comments, scripts and styles removed:
   - `lang` of `<html>`; `titles[]`; `descriptions[]` (`meta name=description`); `canonicals[]` (`href` and `resolved` against `<base>` or the page).
   - `metaRobots[]` (`robots`, `googlebot`, `bingbot` metas); `viewport[]`; `hreflang[]` (alternate links); `verification` (`google-site-verification`, `msvalidate.01`, `yandex-verification` metas).
@@ -60,7 +60,6 @@ Shared by preview images, icons and manifest icons. Each URL is fetched once per
 - `finalUrl`, `status` (206 when the range was honored), `redirects`, `contentType`, `bytes` (the whole file's size).
 - `format` from the file's first bytes, not its content type: `png`, `jpeg`, `gif`, `webp`, `avif`, `heif`, `ico` (plus `icoSizes`), `bmp` or `svg`; null for anything else, such as an HTML error page.
 - `width`, `height` in pixels (an SVG's `width`/`height`, else its `viewBox`); null when unreadable.
-- A localhost or private-network URL is `skipped`, not fetched.
 
 ## Without a JS runtime
 

@@ -5,12 +5,14 @@ The audit's only output, written in chat. No file is written.
 ```md
 ## web-ready-audit: <target>
 
-- **Target**: <url> (<from the argument | ...>)
-- **Source**: `<path>`; head produced by <file or API>
-- **Layers**: source ✔ · runtime: live <url>
+- **Target**: <url> (from the argument | from `<file:line>` | local build, no production URL found)
+- **App**: `<path>` (<stack, or "unrecognized">); head from <file or API>; build `<command>`; serve `<command>` | static
+- **Runtime**: <installed> (declared <version> in `<file>` | none declared)<; mismatch: build may differ from production>
+- **Layers**: source ✔ · build ✔ | ✘ | skipped (<reason>) · typecheck ✔ | ✘ | none · lint ✔ | ✘ | none · runtime: live <url> | local `<command>` on :<port> | emitted HTML in `<folder>` | skipped (<reason>)
 - **Tool**: probe.mjs on <runtime and version> | <fallback tool> (unverified: <facts>)
 - **Pages**: <N> URLs found (<sitemap M>, <links K>), <C> checked; not covered: <templates or routes, or "none">
 - **Not verifiable**: <check: reason>, ...
+- **Not verified locally**: <deploy-only checks>, ... (local runs only)
 
 ### Blocker (<n>)
 

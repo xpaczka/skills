@@ -26,6 +26,9 @@ const MAX_SOCIAL_IMAGES = 4;
 const MAX_ICONS = 10;
 const MAX_JSONLD_BYTES = 20000;
 const IMAGE_RANGE = 'bytes=0-65535';
+// Set when the audit target itself is local; only then are local and private hosts fetched.
+let auditingLocal = false;
+const skipHost = (url) => !auditingLocal && LOCAL_HOST.test(new URL(url).hostname);
 
 // --- HTTP ---
 
@@ -263,7 +266,7 @@ function probeImage(url) {
 
 async function fetchImage(url) {
   if (!url) return { error: 'invalid URL' };
-  if (LOCAL_HOST.test(new URL(url).hostname)) return { skipped: 'local or private host' };
+  if (skipHost(url)) return { skipped: 'local or private host' };
   try {
     // A range request reads only the header bytes; a full GET follows when the size sits further in (large JPEG metadata).
     let { res, body, redirects, finalUrl } = await fetchChain(url, { range: IMAGE_RANGE, accept: 'image/*,*/*' });
@@ -470,8 +473,7 @@ async function probePage(url, robots, siteFacts) {
 }
 
 async function probeTarget(url) {
-  const { hostname } = new URL(url);
-  if (LOCAL_HOST.test(hostname)) return { url, skipped: 'local or private host' };
+  if (skipHost(url)) return { url, skipped: 'local or private host' };
   try {
     const { res, redirects, finalUrl } = await fetchChain(url);
     return { url, finalUrl, status: res.status, redirects };
@@ -577,6 +579,7 @@ async function main(argv) {
     process.exit(targets.length || argv.includes('--help') ? 0 : 2);
   }
   const urls = targets.map((t) => new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`).href);
+  auditingLocal = urls.some((u) => LOCAL_HOST.test(new URL(u).hostname));
 
   // One site per origin robots.txt resolves to, so http://x and https://x share facts when one redirects to the other.
   const sites = [];
