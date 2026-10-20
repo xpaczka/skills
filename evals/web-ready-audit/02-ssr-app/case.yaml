@@ -32,4 +32,4 @@ graders:
     criteria: Pass if the Nice to have section reports the X-Powered-By header. Fail if it is missing or reported as a Blocker or Should fix.
   - type: llm
     name: honest-runtime-layer
-    criteria: The header's Layers line says how the runtime layer ran. The eval sandbox cannot bind a local port, so pass if it names the fallback it used instead (an in-process call of the server's handler, the emitted output, or skipped) and why. Fail if it claims a local server was started and probed.
+    criteria: The header's Layers line says how the runtime layer ran. The eval sandbox cannot bind a local port, so pass if it names the fallback it used instead (the emitted output, or skipped) and why. Fail if it claims a local server was started and probed.

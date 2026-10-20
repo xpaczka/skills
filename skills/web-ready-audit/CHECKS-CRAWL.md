@@ -64,7 +64,7 @@ For a finding whose cause is in the source, cite the line that emits it. When an
 
 ## Preview and staging hosts
 
-- Find the project's other hosts: the platform default host (`*.vercel.app`, `*.netlify.app`, `*.pages.dev`, `*.github.io`) from `platform` and the deploy config, and staging or preview hosts named in the source or CI. Probe each homepage found with `--pages-only`.
+- Find the project's other hosts: the platform default host (`*.vercel.app`, `*.netlify.app`, `*.pages.dev`, `*.github.io`) from `platform` and the deploy config, and staging or preview hosts named in the source or CI. SKILL.md collects their homepages in step 3 and probes them with `--pages-only`; judge those facts.
 - Such a host answers 200, carries no `noindex`, and robots.txt allows it, while it is not the production host: B. Fix: `X-Robots-Tag: noindex` on every non-production host, or a 301 to production. Vercel noindexes its own preview URLs, but not a custom domain assigned to a preview branch.
 - No other host found: not verifiable; name it in the header.
 

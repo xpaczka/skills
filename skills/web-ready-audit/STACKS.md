@@ -4,7 +4,7 @@ A shortcut for the four questions in [DISCOVER.md](DISCOVER.md). The app's own s
 
 ## Known stacks
 
-`<p>` is the port. "Static" is a build with no server: serve it with the listed command when that tool is already installed, else read the emitted HTML.
+`<p>` is the port. "Static" is a build with no server: serve it with the listed command when that tool is already installed, else read the emitted HTML. The last column is the single list of client env prefixes, which the build inlines into public JavaScript; `EXPO_PUBLIC_` (Expo) is one too.
 
 | Stack | Marker | Head | Static files | Build, output | Serve on `<p>` | Client env prefix |
 |---|---|---|---|---|---|---|

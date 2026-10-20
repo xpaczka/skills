@@ -7,7 +7,7 @@ Judge each rule from the probe facts ([PROBE.md](PROBE.md)) and the source. Tier
 Search the tracked files (`git ls-files`, lockfiles excluded) and the client build output (the static or client folder the build wrote) for:
 
 - Key shapes: `AKIA[0-9A-Z]{16}` (AWS), `-----BEGIN [A-Z ]*PRIVATE KEY-----`, `sk_live_` and `rk_live_` (Stripe), `ghp_`, `github_pat_`, `glpat-`, `xox[baprs]-` (Slack), `sk-ant-` (Anthropic), `sk-proj-` (OpenAI), `SG\.[A-Za-z0-9_-]{22}\.` (SendGrid), a JWT whose payload holds `"role":"service_role"` (Supabase; base64 `c2VydmljZV9yb2xl`).
-- Secret-looking names under a client prefix (`NEXT_PUBLIC_`, `VITE_`, `PUBLIC_`, `NUXT_PUBLIC_`, `REACT_APP_`, `GATSBY_`, `EXPO_PUBLIC_`): `*SECRET*`, `*PRIVATE*`, `*SERVICE_ROLE*`, `*PASSWORD*`, a `DATABASE_URL`. The build inlines these into public JavaScript.
+- Secret-looking names under a client env prefix (the list in [STACKS.md](STACKS.md#known-stacks)): `*SECRET*`, `*PRIVATE*`, `*SERVICE_ROLE*`, `*PASSWORD*`, a `DATABASE_URL`. The build inlines these into public JavaScript.
 
 Rules:
 
@@ -51,9 +51,13 @@ An **auth cookie** has a session-like name (`sess`, `sid`, `auth`, `token`, `jwt
 
 ## Mixed content
 
-- An `html.mixedContent` entry with `active` true (script, stylesheet, iframe, object): B, browsers block it and the page breaks.
-- A passive entry (image, media) or a `form` posting to `http://`: S.
+- Any `html.mixedContent` entry: B. An `active` one (script, stylesheet, iframe, object) is blocked and breaks the page; a passive one (image, media) is upgraded to https and dropped when that fails; a `form` posting to `http://` shows a not-secure warning.
 - In the source, find the hard-coded `http://` URL and cite it.
+
+## security.txt
+
+- `wellKnown.securityTxt` not a 200 text file: N, researchers have no contact for reporting vulnerabilities. RFC 9116 (checked 2026-10-20) places it at `/.well-known/security.txt`.
+- Present but with no `contact`, no `expires`, or `daysToExpiry` below 0: N, invalid. `daysToExpiry` above 365: N, the RFC recommends under a year. Found only at `/security.txt` (see `tried`): N.
 
 ## Exposed files and endpoints
 

@@ -8,7 +8,7 @@ The audit's only output, written in chat. No file is written.
 - **Target**: <url> (from the argument | from `<file:line>` | local build, no production URL found)
 - **App**: `<path>` (<stack, or "unrecognized">); head from <file or API>; build `<command>`; serve `<command>` | static
 - **Runtime**: <installed> (declared <version> in `<file>` | none declared)<; mismatch: build may differ from production>
-- **Layers**: source ✔ · build ✔ | ✘ | skipped (<reason>) · typecheck ✔ | ✘ | none · lint ✔ | ✘ | none · runtime: live <url> | local `<command>` on :<port> | emitted HTML in `<folder>` | skipped (<reason>)
+- **Layers**: source ✔ · build ✔ | ✘ | skipped (<reason>) · typecheck ✔ | ✘ | none | skipped (writes files) · lint ✔ | ✘ | none | skipped (writes files) · runtime: live <url> | local `<command>` on :<port> | emitted HTML in `<folder>` | skipped (<reason>)
 - **Tool**: probe.mjs on <runtime and version> | <fallback tool> (unverified: <facts>)
 - **Pages**: <N> URLs found (<sitemap M>, <links K>), <C> checked; not covered: <templates or routes, or "none">
 - **Conditional**: <check>: ran (<signal>) | skipped (no <signal>), for each of mail authentication, Germany and Austria, migration redirects, ads, app links, blog feed

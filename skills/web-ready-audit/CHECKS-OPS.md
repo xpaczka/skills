@@ -1,6 +1,6 @@
 # Accessibility, legal, ops and conditional checks
 
-Judge each rule from the probe facts ([PROBE.md](PROBE.md)) and the source. Tiers: **B** Blocker, **S** Should fix, **N** Nice to have. These are quick, high-signal checks; contrast and full WCAG audits need a browser with axe and stay out of scope. Legal facts below were checked against gesetze-im-internet.de (DDG, BFSG), Google's sender guidelines, RFC 9116 and the Apple and Android docs on 2026-10-20.
+Judge each rule from the probe facts ([PROBE.md](PROBE.md)) and the source. Tiers: **B** Blocker, **S** Should fix, **N** Nice to have. These are quick, high-signal checks; contrast and full WCAG audits need a browser with axe and stay out of scope. Legal facts below were checked against gesetze-im-internet.de (DDG, BFSG), Google's sender guidelines and the Apple and Android docs on 2026-10-20.
 
 ## Accessibility basics
 
@@ -16,11 +16,6 @@ Judge each rule from the probe facts ([PROBE.md](PROBE.md)) and the source. Tier
 
 - **Privacy policy**: the site sets cookies (`security.cookies`), loads analytics, tag or pixel scripts (`assets.totals.thirdPartyHosts`, `html.scripts`), or has forms that collect personal data, and no `html.legalLinks` entry leads to a privacy policy: S.
 - **Consent**: an EU signal (an EU-language `lang` or locale, an EU country domain, the DE/AT signal below) and analytics or ad scripts in the raw HTML, or non-essential cookies on the first response, with no consent manager in the source (OneTrust, Cookiebot, Usercentrics, Klaro, CookieYes, Didomi, iubenda, or a custom banner that gates the scripts): S. When a consent manager exists, add "verify yourself": trackers load only after consent.
-
-## security.txt
-
-- `wellKnown.securityTxt` not a 200 text file: N, researchers have no contact for reporting vulnerabilities. RFC 9116 places it at `/.well-known/security.txt`.
-- Present but with no `contact`, no `expires`, or `daysToExpiry` below 0: N, invalid. `daysToExpiry` above 365: N, the RFC recommends under a year. Found only at `/security.txt` (see `tried`): N.
 
 ## Conditional checks
 
@@ -40,13 +35,13 @@ Each runs only when its signal shows in the source or the probe facts. The repor
 ### Germany and Austria
 
 - **Signal**: `lang` or a locale `de`, `de-DE` or `de-AT`, a `.de` or `.at` domain, or a `de` hreflang.
-- **Imprint** (§5 DDG for commercial digital services): no `html.legalLinks` entry to an imprint (`impressum`, `imprint`, `legal-notice`) on every checked page: S. The law requires the provider information to be easy to recognize, directly reachable and always available, which in practice means a footer link. Probe the imprint page with `--pages-only`; one missing a name, a postal address or an email address: S.
+- **Imprint** (§5 DDG for commercial digital services): no `html.legalLinks` entry to an imprint (`impressum`, `imprint`, `legal-notice`) on every checked page: S. The law requires the provider information to be easy to recognize, directly reachable and always available, which in practice means a footer link. The imprint page from `legalLinks` joins the step-8 `--pages-only` run; one missing a name, a postal address or an email address: S.
 - **Accessibility statement** (European Accessibility Act, in Germany the BFSG, in force for services from 28 June 2025): the site sells to consumers (cart, checkout, booking, paid signup) and no `legalLinks` entry leads to an accessibility statement (`barrierefreiheit`, `accessibility`): S. Add "verify yourself": micro-enterprises (fewer than 10 people and at most EUR 2 million turnover or balance sheet) are exempt for services.
 
 ### Migration redirects
 
 - **Signal**: a redirect map (many entries in `redirects()`, `_redirects`, `vercel.json`, an nginx or `.htaccess` rule list, a CSV or JSON of old URLs) or an old domain named in the source.
-- Pick up to 10 old URLs from the map and probe them with `--pages-only`. One that ends 404 or 5xx: B, inbound links and rankings are lost. Many old URLs landing on the homepage: B, search engines treat that as a soft 404. A 302 or 307 hop: S. More than one hop: N.
+- SKILL.md picks up to 10 old URLs from the map in step 3 and probes them with `--pages-only`. One that ends 404 or 5xx: B, inbound links and rankings are lost. Many old URLs landing on the homepage: B, search engines treat that as a soft 404. A 302 or 307 hop: S. More than one hop: N.
 
 ### Ads
 

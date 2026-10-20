@@ -7,11 +7,11 @@
 ```sh
 node scripts/probe.mjs <url> [<url>...]            # or: bun scripts/probe.mjs, deno run --allow-net scripts/probe.mjs
 node scripts/probe.mjs --pages-only <url> [<url>...]
-node scripts/probe.mjs --list-probes [--pages-only] [--api <path>]... <url>   # prints the planned requests, sends none
+node scripts/probe.mjs --list-probes [--pages-only] [--api <path>]... [--pages <url>]... <url>   # prints the planned requests, sends none
 node scripts/probe.mjs --mail-dns <domain> [--dkim-selector <name>]...         # DNS only, for the mail check
 ```
 
-- `--list-probes` prints `get[]` (each GET with its purpose and any special header), `tls[]`, `dns[]`, and `dependent[]` (requests whose URLs come from responses). Show it to the user before the first real run.
+- `--list-probes` prints `get[]` (each GET with its purpose and any special header), `tls[]`, `dns[]` (both empty with `--pages-only`), `dependent[]` (requests whose URLs come from responses) and `siteOrigin`: site checks go to the origin robots.txt finally resolves to, so when it redirects (http to https, apex to www) they go there. `--pages <url>` (repeatable) adds the pages and robots.txt files of a later `--pages-only` run, such as other hosts and migration URLs. Show the list to the user before the first real run.
 - `--api <path>` (repeatable) adds same-origin API routes to the CORS check.
 - The first run (homepage) gathers site facts and page facts. `--pages-only` still reads robots.txt, so every page gets its robots verdict, but skips sitemaps, DNS and the homepage facts, and leaves `inSitemap` null: pages taken from the sitemap are in it by definition.
 - A bare host gets `https://`; pass a local server as `http://localhost:<port>`. Localhost and private-network URLs (canonical targets, images) are fetched only when the target itself is local; otherwise they are `skipped`. Requests go one at a time, follow at most 10 redirects, and time out after 15 s each.
@@ -90,6 +90,7 @@ Gather the fact list with the best detected tool, under the same names:
 
 - **curl**: `curl -sS -A '<browser UA>' --max-redirs 0 -D - -o <file> <url>` per hop, following `Location` by hand to record `redirects`. Parse robots.txt, sitemaps and the head from the saved bodies with the same rules as above. DNS TXT: `dig +short TXT <host>` or `nslookup -type=TXT <host>`.
 - **wget**: `wget -S --max-redirect=0 -O <file> <url>` per hop, the same way.
+- **python3** (no curl or wget): `python3 -I -c` with `urllib.request` and a redirect handler that does not follow, one request per hop, recording each `Location`; `ssl` and `socket` for TLS (`getpeercert()` gives `subjectAltName` and `notAfter`); image `format`, `width` and `height` read from the first bytes with `struct` (PNG `IHDR`, JPEG `SOF`, GIF and WebP headers). DNS TXT still needs `dig` or `nslookup`.
 - **Mail DNS**: `dig +short TXT <domain>`, `dig +short TXT _dmarc.<domain>`, `dig +short TXT <selector>._domainkey.<domain>`, `dig +short MX <domain>`.
 - **TLS**: `openssl s_client -connect <host>:443 -servername <host> </dev/null | openssl x509 -noout -enddate -ext subjectAltName`.
 - **Image facts**: save each image (`curl -sS -r 0-65535 -D - -o <file> <url>`, a full GET when the size is missing) and read `format`, `width` and `height` with `file <file>` (PNG, JPEG, GIF, WebP), or `sips -g pixelWidth -g pixelHeight <file>` on macOS. `bytes` comes from the `Content-Range` total.

@@ -57,8 +57,10 @@ On anything but a yes, install nothing: skip the build and the local runtime lay
 
 Run the build command (question 2), then the typecheck and lint scripts when `package.json` (or the stack's equivalent) defines them (`typecheck`, `type-check`, `check`, `lint`). Production mode: `NODE_ENV=production` unless the script sets it.
 
+Read each typecheck and lint script before running it. One that writes files (`--fix`, `--write`, `--apply`, `prettier --write`, a formatter) would edit the project: run its read-only form when there is one (the same command without the flag, `prettier --check`), else skip it and say "skipped (writes files)" in the Layers line.
+
 - A failing build, typecheck or lint (non-zero exit): B. Evidence is the first error lines and the command; the fix names the failing file when the output does.
-- A failure caused only by environment variables that the deploy platform provides (the error names a missing variable that `.env.example` or the deploy config lists): "not verifiable locally", naming the variables. Every other failure is a finding.
+- A failure caused only by environment variables that the deploy platform provides (the error names a missing variable that `.env.example` or the deploy config lists) is still B: name the variables in the evidence, and add "verify yourself": the platform sets them for production builds.
 - Note the output folder; the local runtime layer and the "emitted HTML" fallback read from it.
 
 ## Serve locally
@@ -75,6 +77,6 @@ Runs only when there is no live URL and the build passed.
 
 ## Judging local output
 
-- **Production host**: host checks (sitemap hosts, canonical, `og:url`, preview images) compare against the production URL candidate, not `localhost`. With no candidate, a `localhost` origin in the output is S, "no production URL configured", unless a deploy-platform variable sets it (then "verify yourself").
+- **Production host**: host checks (sitemap hosts, canonical, `og:url`, preview images) compare against the production URL candidate, not `localhost`. With no candidate, a `localhost` origin that production emits too (hard-coded, or set in `.env.production` or the deploy config) keeps the tier its CHECKS rule gives, so a `localhost` canonical or sitemap host is B. A `localhost` origin that is only the dev fallback of an unset variable is S, "no production URL configured", unless a deploy-platform variable sets it (then "verify yourself").
 - **Environment-dependent values**: a `localhost` value in the local output is a finding only when the source emits it in production too. When a production-only variable overrides it (`VERCEL_PROJECT_PRODUCTION_URL` or `VERCEL_URL`, `URL` on Netlify, `CF_PAGES_URL`), name the variable under "Verify yourself".
 - **Deploy-only checks** read "not verified locally": HTTPS and TLS, HSTS, host-level redirects (http to https, www), CDN and platform headers, `platform`, preview hosts, DNS verification. Where the source sets headers or redirects (STACKS.md lists the files), judge those rules from the config instead and cite it.

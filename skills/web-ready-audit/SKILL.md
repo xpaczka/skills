@@ -29,12 +29,12 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 
 1. **Arguments.** `[url]` is an argument starting with `http://` or `https://`, or a bare host such as `example.com`. `[path]` is the app folder, default the current directory.
 2. **Discover** ([DISCOVER.md](DISCOVER.md)): the app (ask when a monorepo holds several), the four questions, the declared and installed runtime, the tools, and the target URL by precedence.
-3. **Source.** In the app, find the files behind the head, robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title`, `lang=`, `og:`, `twitter:`, `icon`, `manifest` and `ld+json`. Keep each hit's `file:line` for the findings.
+3. **Source.** In the app, find the files behind the head, robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title`, `lang=`, `og:`, `twitter:`, `icon`, `manifest` and `ld+json`. Keep each hit's `file:line` for the findings. Also collect the URLs later runs will request: the project's other hosts ([CHECKS-CRAWL.md](CHECKS-CRAWL.md#preview-and-staging-hosts)) and, when a redirect map shows, up to 10 old URLs ([CHECKS-OPS.md](CHECKS-OPS.md#migration-redirects)).
 4. **Build** the app, then typecheck and lint when it has them ([DISCOVER.md](DISCOVER.md#build)). With dependencies missing, ask once before a frozen install.
 5. **Runtime.** A target URL is the live site. Without one, serve the build on a free port and use `http://localhost:<port>` ([DISCOVER.md](DISCOVER.md#serve-locally)).
-6. **Requests.** Pick the `--api` routes ([CHECKS-SECURITY.md](CHECKS-SECURITY.md#cors)), run the probe with `--list-probes`, and show the user that list, plus the dependency audit's registry request and, when the mail check will run, its DNS lookups. Then send them.
+6. **Requests.** Pick the `--api` routes ([CHECKS-SECURITY.md](CHECKS-SECURITY.md#cors)), run the probe with `--list-probes`, passing each step-3 URL with `--pages <url>`, and show the user that list, plus the step-8 pages (and the imprint page when the Germany and Austria check runs), the dependency audit's registry request and, when the mail check will run, its DNS lookups. Nothing outside that list is requested. Then send them.
 7. **Homepage.** Run the probe on the target ([PROBE.md](PROBE.md)).
-8. **Pages.** Take candidates from `sites[].sitemap.urls`, else the homepage's `html.internalLinks`, plus the routes in the source. Under 15 candidates, check them all; otherwise check one page per route template (same path shape, one varying segment), at most 25. Run the probe on them with `--pages-only`. Then stop a local server.
+8. **Pages.** Take candidates from `sites[].sitemap.urls`, else the homepage's `html.internalLinks`, plus the routes in the source. Under 15 candidates, check them all; otherwise check one page per route template (same path shape, one varying segment), at most 25. Run the probe on them with `--pages-only`, together with the step-3 URLs and the imprint page. Then stop a local server.
 9. **Judge.** Apply every rule in the checks file of each category below; a local run also follows [DISCOVER.md](DISCOVER.md#judging-local-output). Done when every rule has a verdict: a finding, a pass, "not verifiable" or "not verified locally", with the reason.
 10. **Report** in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md).
 
@@ -59,6 +59,6 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 
 | If the environment has… | do | else |
 |---|---|---|
-| `node` 22 or later, `bun` or `deno` | run `scripts/probe.mjs` | gather the PROBE.md fact list with `curl` or `wget`, else the harness's web fetch; mark facts no tool can get as unverified |
+| `node` 22 or later, `bun` or `deno` | run `scripts/probe.mjs` | gather the PROBE.md fact list with `curl`, `wget` or `python3`, else the harness's web fetch; mark facts no tool can get as unverified |
 | background commands | start the local server in the background and stop it by its handle | `<command> > <log> 2>&1 &`, keep `$!`, stop with `kill` |
 | a structured question UI | use it for multiple-choice questions | numbered plain-text questions |

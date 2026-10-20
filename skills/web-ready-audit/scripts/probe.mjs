@@ -1,75 +1,40 @@
 #!/usr/bin/env node
 // Fetches pages of a live site with read-only GETs and prints launch-readiness facts as JSON.
 // Zero dependencies: web-standard fetch plus node: built-ins that Bun and Deno also support.
-// Usage: probe.mjs [--pages-only | --list-probes] [--api <path>]... <url> [<url>...]
+// Usage: probe.mjs [--pages-only] [--api <path>]... <url> [<url>...]
+//        probe.mjs --list-probes [--pages-only] [--api <path>]... [--pages <url>]... <url> [<url>...]
 //        probe.mjs --mail-dns <domain> [--dkim-selector <name>]...
 import { lookup, resolveMx, resolveTxt } from 'node:dns/promises';
 import { connect } from 'node:tls';
 import { gunzipSync } from 'node:zlib';
 
-const USAGE = 'usage: probe.mjs [--pages-only | --list-probes] [--api <path>]... <url> [<url>...]\n       probe.mjs --mail-dns <domain> [--dkim-selector <name>]...';
+// --- HTTP ---
+
+// HTTP and URL helpers shared by every probe: the redirect-recording GET, the target context and the error envelope.
+
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const TIMEOUT_MS = 15000;
 const MAX_HOPS = 10;
-const MAX_SITEMAPS = 50;
-const MAX_SITEMAP_URLS = 500;
-const MAX_LINKS = 100;
-const MAX_OTHER_LINES = 20;
-const SITEMAP_GUESSES = ['/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml'];
-const AI_CRAWLERS = ['GPTBot', 'OAI-SearchBot', 'ClaudeBot', 'Claude-SearchBot', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'PerplexityBot'];
-const VERIFICATION_META = ['google-site-verification', 'msvalidate.01', 'yandex-verification'];
 const LOCAL_HOST = /^(localhost|127\.|0\.0\.0\.0|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
-const SCRAPERS = {
-  facebookexternalhit: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-  Twitterbot: 'Twitterbot/1.0',
-};
-const SOCIAL_IMAGE_TAGS = ['og:image', 'og:image:url', 'og:image:secure_url', 'twitter:image', 'twitter:image:src'];
-const MAX_SOCIAL_IMAGES = 4;
-const MAX_ICONS = 10;
-const MAX_JSONLD_BYTES = 20000;
-const IMAGE_RANGE = 'bytes=0-65535';
-const EVIL_ORIGIN = 'https://evil.example';
-const GRAPHQL_PATHS = ['/graphql', '/api/graphql'];
-const INTROSPECTION_QUERY = '{__schema{queryType{name}}}';
-const PROBE_RANGE = 'bytes=0-4095';
-const MAX_MIXED = 20;
-const WELL_KNOWN = {
-  securityTxt: ['/.well-known/security.txt', '/security.txt'],
-  adsTxt: ['/ads.txt'],
-  appleAppSiteAssociation: ['/.well-known/apple-app-site-association', '/apple-app-site-association'],
-  assetLinks: ['/.well-known/assetlinks.json'],
-};
-// Common DKIM selectors of mail providers (Google, Microsoft 365, Mailchimp/Mandrill, SendGrid, Resend, Postmark, Zoho, generic).
-const DKIM_SELECTORS = ['google', 'selector1', 'selector2', 'k1', 'k2', 'k3', 's1', 's2', 'resend', 'pm', 'mandrill', 'zoho', 'mail', 'dkim', 'default', 'smtp'];
-const LEGAL_LINK = /impressum|imprint|legal|privacy|datenschutz|terms|agb|accessibility|barrierefrei|cookie/i;
-const MAX_CONTROLS = 5;
-const NOT_FOUND_PREFIX = '/web-ready-audit-404-';
-const MAX_ASSET_LIST = 50;
-const MAX_SCRIPTS = 20;
-const MAX_STYLESHEETS = 10;
-const MAX_IMAGES = 10;
-// Paths that must never be public, each with a check on the body so an SPA fallback page is not mistaken for the file.
-const dotenv = (b) => /^\s*(export\s+)?[A-Z_][A-Z0-9_]*\s*=/m.test(b.toString('utf8'));
-const sqlDump = (b) => /\b(CREATE TABLE|INSERT INTO)\b/i.test(b.toString('utf8'));
-const EXPOSED_FILES = {
-  '/.env': dotenv,
-  '/.env.local': dotenv,
-  '/.env.production': dotenv,
-  '/.git/HEAD': (b) => /^(ref: refs\/|[0-9a-f]{40}\s*$)/.test(b.toString('utf8')),
-  '/.git/config': (b) => /^\s*\[core\]/m.test(b.toString('utf8')),
-  '/.DS_Store': (b) => b.toString('latin1', 4, 8) === 'Bud1',
-  '/.npmrc': (b) => /_authToken|^\s*registry\s*=/m.test(b.toString('utf8')),
-  '/backup.zip': (b) => b.toString('latin1', 0, 4) === 'PK\x03\x04',
-  '/backup.tar.gz': (b) => b[0] === 0x1f && b[1] === 0x8b,
-  '/backup.sql': sqlDump,
-  '/dump.sql': sqlDump,
-  '/database.sql': sqlDump,
-};
-// Set when the audit target itself is local; only then are local and private hosts fetched.
-let auditingLocal = false;
-const skipHost = (url) => !auditingLocal && LOCAL_HOST.test(new URL(url).hostname);
 
-// --- HTTP ---
+const isLocalHost = (hostname) => LOCAL_HOST.test(hostname);
+
+// An https origin on a public host: the only kind with TLS, host-level redirects and DNS worth checking.
+function isRemoteHttps(url) {
+  const { protocol, hostname } = new URL(url);
+  return protocol === 'https:' && !isLocalHost(hostname);
+}
+
+// The www or apex twin of a host: users type either, so both need a valid certificate and a redirect.
+function twinHost(host) {
+  return host.startsWith('www.') ? host.slice(4) : `www.${host}`;
+}
+
+// Local and private hosts are fetched only when the audit target itself is local.
+function targetContext(urls) {
+  const local = urls.some((u) => isLocalHost(new URL(u).hostname));
+  return { local, skip: (url) => !local && isLocalHost(new URL(url).hostname) };
+}
 
 // GETs url without following redirects automatically, so every hop is recorded.
 async function fetchChain(url, headers = {}) {
@@ -97,9 +62,34 @@ async function fetchChain(url, headers = {}) {
   throw new Error(`more than ${MAX_HOPS} redirects`);
 }
 
+// Status, final URL and redirect hops of one GET.
+async function chain(url, headers) {
+  const { res, redirects, finalUrl } = await fetchChain(url, headers);
+  return { finalUrl, status: res.status, redirects };
+}
+
 function errorText(error) {
   const cause = error.cause?.code ?? error.cause?.message;
   return cause ? `${error.message} (${cause})` : error.message;
+}
+
+// Runs one probe of url: `{ skipped }` for a host the target context skips, `{ error }` instead of a throw.
+async function attempt(ctx, url, probe) {
+  if (!url) return { error: 'invalid URL' };
+  if (ctx.skip(url)) return { skipped: 'local or private host' };
+  try {
+    return await probe();
+  } catch (error) {
+    return { error: errorText(error) };
+  }
+}
+
+function resolve(href, base) {
+  try {
+    return new URL(href, base).href;
+  } catch {
+    return null;
+  }
 }
 
 function headerObject(res) {
@@ -124,6 +114,19 @@ function platformOf(headers) {
 
 // --- HTML ---
 
+// Facts from raw HTML, the way crawlers and link-preview scrapers read it. Each extractor reads one part of a parsed
+// document, so a caller that needs only the head (scraper re-fetches, the 404 page) skips the rest.
+
+const VERIFICATION_META = ['google-site-verification', 'msvalidate.01', 'yandex-verification'];
+const LEGAL_LINK = /impressum|imprint|legal|privacy|datenschutz|terms|agb|accessibility|barrierefrei|cookie/i;
+const MAX_LINKS = 100;
+const MAX_ASSET_LIST = 50;
+const MAX_CONTROLS = 5;
+const MAX_LEGAL_LINKS = 20;
+const MAX_MIXED = 20;
+const MAX_JSONLD_BYTES = 20000;
+const NON_CONTENT = /<(script|style|noscript|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+
 function decodeEntities(s) {
   return s
     .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
@@ -140,37 +143,45 @@ function attrs(source) {
   return out;
 }
 
-function resolve(href, base) {
-  try {
-    return new URL(href, base).href;
-  } catch {
-    return null;
-  }
-}
-
 function canonicalFromLinkHeader(value) {
   if (!value) return null;
   const m = value.match(/<([^>]+)>\s*;[^,]*rel="?canonical"?/i);
   return m ? m[1] : null;
 }
 
-function parseHtml(html, pageUrl) {
+function textOf(html) {
+  return decodeEntities(html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+const relsOf = (tag) => (tag.rel ?? '').toLowerCase().split(/\s+/);
+
+// Splits a page into head and body with comments removed, and reads the head's meta, link and base tags.
+function readDocument(html, pageUrl) {
   const clean = html.replace(/<!--[\s\S]*?-->/g, '');
-  const jsonLd = [...clean.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
-    .filter((m) => /^application\/ld\+json$/i.test((attrs(m[1]).type ?? '').trim()))
-    .map((m) => jsonLdBlock(m[2]));
   const headEnd = clean.search(/<\/head\s*>/i);
-  const head = (headEnd === -1 ? clean.slice(0, 1_000_000) : clean.slice(0, headEnd))
-    .replace(/<(script|style|noscript|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
-  const body = (headEnd === -1 ? clean : clean.slice(headEnd)).replace(/<(script|style|noscript|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
-
+  const head = (headEnd === -1 ? clean.slice(0, 1_000_000) : clean.slice(0, headEnd)).replace(NON_CONTENT, '');
+  const body = (headEnd === -1 ? clean : clean.slice(headEnd)).replace(NON_CONTENT, '');
   const tags = [...head.matchAll(/<(meta|link|base)\b([^>]*)>/gi)].map((m) => ({ tag: m[1].toLowerCase(), ...attrs(m[2]) }));
-  const metas = tags.filter((t) => t.tag === 'meta');
-  const links = tags.filter((t) => t.tag === 'link');
-  const rels = (t) => (t.rel ?? '').toLowerCase().split(/\s+/);
-  const metaNamed = (...names) => metas.filter((t) => names.includes((t.name ?? '').toLowerCase()));
   const base = resolve(tags.find((t) => t.tag === 'base')?.href ?? '', pageUrl) ?? pageUrl;
+  return {
+    pageUrl,
+    clean,
+    headEnd,
+    head,
+    body,
+    base,
+    metas: tags.filter((t) => t.tag === 'meta'),
+    links: tags.filter((t) => t.tag === 'link'),
+  };
+}
 
+// The body's anchors, read once for the accessibility, legal and internal-link facts.
+function anchorsOf(doc) {
+  return [...doc.body.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].map((m) => ({ a: attrs(m[1]), inner: m[2], outer: m[0] }));
+}
+
+function headFacts({ clean, head, base, metas, links }) {
+  const metaNamed = (...names) => metas.filter((t) => names.includes((t.name ?? '').toLowerCase()));
   // Open Graph and X tags, keyed by property, each a list because og:image may repeat.
   const openGraph = {};
   const twitter = {};
@@ -179,21 +190,37 @@ function parseHtml(html, pageUrl) {
     const into = key.startsWith('og:') ? openGraph : key.startsWith('twitter:') ? twitter : null;
     if (into) (into[key] ??= []).push(t.content ?? '');
   }
-  const icons = links
-    .filter((t) => rels(t).includes('icon') || rels(t).some((r) => r.startsWith('apple-touch-icon') || r === 'mask-icon'))
-    .map((t) => ({ rel: rels(t).join(' '), href: t.href ?? '', resolved: resolve(t.href ?? '', base), sizes: t.sizes ?? null, type: t.type ?? null }));
-  const manifest = links.find((t) => rels(t).includes('manifest'));
-  const scriptTags = [...clean.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)].map((m) => ({ ...attrs(m[1]), inline: m[2] }));
-  const inHead = (index) => headEnd === -1 || index < headEnd;
-  const scripts = [...clean.matchAll(/<script\b([^>]*)>/gi)]
-    .map((m) => ({ a: attrs(m[1]), index: m.index }))
+  const verification = {};
+  for (const t of metaNamed(...VERIFICATION_META)) verification[t.name.toLowerCase()] = t.content ?? '';
+  const manifest = links.find((t) => relsOf(t).includes('manifest'));
+  return {
+    base,
+    lang: attrs(clean.match(/<html\b([^>]*)>/i)?.[1] ?? '').lang ?? null,
+    titles: [...head.matchAll(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/gi)].map((m) => decodeEntities(m[1]).replace(/\s+/g, ' ').trim()),
+    descriptions: metaNamed('description').map((t) => t.content ?? ''),
+    canonicals: links.filter((t) => relsOf(t).includes('canonical')).map((t) => ({ href: t.href ?? '', resolved: resolve(t.href ?? '', base) })),
+    metaRobots: metaNamed('robots', 'googlebot', 'bingbot').map((t) => ({ name: t.name.toLowerCase(), content: t.content ?? '' })),
+    viewport: metaNamed('viewport').map((t) => t.content ?? ''),
+    hreflang: links.filter((t) => relsOf(t).includes('alternate') && t.hreflang).map((t) => ({ hreflang: t.hreflang, href: resolve(t.href ?? '', base) })),
+    verification,
+    openGraph,
+    twitter,
+    icons: links
+      .filter((t) => relsOf(t).some((r) => r === 'icon' || r === 'mask-icon' || r.startsWith('apple-touch-icon')))
+      .map((t) => ({ rel: relsOf(t).join(' '), href: t.href ?? '', resolved: resolve(t.href ?? '', base), sizes: t.sizes ?? null, type: t.type ?? null })),
+    manifest: manifest ? resolve(manifest.href ?? '', base) : null,
+    cspMeta: metas.find((t) => (t['http-equiv'] ?? '').toLowerCase() === 'content-security-policy')?.content ?? null,
+    feeds: links
+      .filter((t) => relsOf(t).includes('alternate') && /(rss|atom)\+xml/i.test(t.type ?? ''))
+      .map((t) => ({ type: t.type, href: resolve(t.href ?? '', base) })),
+  };
+}
+
+function assetFacts({ pageUrl, clean, headEnd, body, base, links }) {
+  const scriptTags = [...clean.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)].map((m) => ({ a: attrs(m[1]), inline: m[2], index: m.index }));
+  const scripts = scriptTags
     .filter(({ a }) => a.src)
-    .map(({ a, index }) => ({ src: resolve(a.src, base), type: a.type ?? null, async: 'async' in a, defer: 'defer' in a, inHead: inHead(index) }));
-  const inlineScriptBytes = scriptTags.filter((t) => !t.src && !/json/i.test(t.type ?? '')).reduce((n, t) => n + t.inline.length, 0);
-  const stylesheets = links.filter((t) => rels(t).includes('stylesheet')).map((t) => resolve(t.href ?? '', base));
-  const resourceHints = links
-    .filter((t) => rels(t).some((r) => ['preconnect', 'dns-prefetch', 'preload', 'modulepreload'].includes(r)))
-    .map((t) => ({ rel: rels(t).join(' '), href: resolve(t.href ?? '', base), as: t.as ?? null }));
+    .map(({ a, index }) => ({ src: resolve(a.src, base), type: a.type ?? null, async: 'async' in a, defer: 'defer' in a, inHead: headEnd === -1 || index < headEnd }));
   const images = [...body.matchAll(/<img\b([^>]*)>/gi)].map((m) => attrs(m[1])).map((a) => ({
     src: resolve(a.src ?? '', base),
     srcset: Boolean(a.srcset),
@@ -203,73 +230,56 @@ function parseHtml(html, pageUrl) {
     height: a.height ?? null,
     alt: 'alt' in a ? a.alt : null,
   }));
-  const feeds = links
-    .filter((t) => rels(t).includes('alternate') && /(rss|atom)\+xml/i.test(t.type ?? ''))
-    .map((t) => ({ type: t.type, href: resolve(t.href ?? '', base) }));
-  const ids = new Set([...body.matchAll(/\bid\s*=\s*["']?([^"'\s>]+)/gi)].map((m) => m[1]));
-  const anchors = [...body.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].map((m) => ({ a: attrs(m[1]), inner: m[2], outer: m[0] }));
-  const buttons = [...body.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button\s*>/gi)].map((m) => ({ a: attrs(m[1]), inner: m[2], outer: m[0] }));
-  const skip = anchors.slice(0, 5).find(({ a, inner }) => (a.href ?? '').startsWith('#') && /skip|zum inhalt|springen|aller au contenu/i.test(`${textOf(inner)} ${a.class ?? ''}`));
-  const unnamed = [...anchors.filter(({ a }) => a.href !== undefined), ...buttons].filter(({ a, inner }) => !accessibleName(a, inner));
-  const cspMeta = metas.find((t) => (t['http-equiv'] ?? '').toLowerCase() === 'content-security-policy')?.content ?? null;
-
-  const verification = {};
-  for (const t of metaNamed(...VERIFICATION_META)) verification[t.name.toLowerCase()] = t.content ?? '';
-
-  const internal = new Set();
-  const origin = new URL(pageUrl).origin;
-  for (const m of body.matchAll(/<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
-    const href = resolve(decodeEntities(m[1] ?? m[2] ?? m[3]), base);
-    if (!href || new URL(href).origin !== origin) continue;
-    internal.add(href.replace(/#.*$/, ''));
-  }
-
-  const text = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  const mount = body.match(/<div\b[^>]*\bid\s*=\s*["']?(root|app|__next|svelte|q-app)["']?[^>]*>\s*<\/div>/i);
-
   return {
-    base,
-    lang: attrs(clean.match(/<html\b([^>]*)>/i)?.[1] ?? '').lang ?? null,
-    titles: [...head.matchAll(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/gi)].map((m) => decodeEntities(m[1]).replace(/\s+/g, ' ').trim()),
-    descriptions: metaNamed('description').map((t) => t.content ?? ''),
-    canonicals: links.filter((t) => rels(t).includes('canonical')).map((t) => ({ href: t.href ?? '', resolved: resolve(t.href ?? '', base) })),
-    metaRobots: metaNamed('robots', 'googlebot', 'bingbot').map((t) => ({ name: t.name.toLowerCase(), content: t.content ?? '' })),
-    viewport: metaNamed('viewport').map((t) => t.content ?? ''),
-    hreflang: links.filter((t) => rels(t).includes('alternate') && t.hreflang).map((t) => ({ hreflang: t.hreflang, href: resolve(t.href ?? '', base) })),
-    verification,
-    openGraph,
-    twitter,
-    icons,
-    manifest: manifest ? resolve(manifest.href ?? '', base) : null,
-    jsonLd,
-    cspMeta,
+    jsonLd: scriptTags.filter(({ a }) => /^application\/ld\+json$/i.test((a.type ?? '').trim())).map(({ inline }) => jsonLdBlock(inline)),
     mixedContent: new URL(pageUrl).protocol === 'https:' ? mixedContent(clean) : null,
     scripts: scripts.slice(0, MAX_ASSET_LIST),
     scriptCount: scripts.length,
-    inlineScriptBytes,
-    stylesheets: stylesheets.slice(0, MAX_ASSET_LIST),
-    resourceHints,
+    inlineScriptBytes: scriptTags.filter(({ a }) => !a.src && !/json/i.test(a.type ?? '')).reduce((n, t) => n + t.inline.length, 0),
+    stylesheets: links.filter((t) => relsOf(t).includes('stylesheet')).map((t) => resolve(t.href ?? '', base)).slice(0, MAX_ASSET_LIST),
+    resourceHints: links
+      .filter((t) => relsOf(t).some((r) => ['preconnect', 'dns-prefetch', 'preload', 'modulepreload'].includes(r)))
+      .map((t) => ({ rel: relsOf(t).join(' '), href: resolve(t.href ?? '', base), as: t.as ?? null })),
     images: images.slice(0, MAX_ASSET_LIST),
     imageCount: images.length,
-    feeds,
+  };
+}
+
+function a11yFacts({ body, base }, anchors) {
+  const ids = new Set([...body.matchAll(/\bid\s*=\s*["']?([^"'\s>]+)/gi)].map((m) => m[1]));
+  const buttons = [...body.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button\s*>/gi)].map((m) => ({ a: attrs(m[1]), inner: m[2], outer: m[0] }));
+  const skip = anchors.slice(0, 5).find(({ a, inner }) => (a.href ?? '').startsWith('#') && /skip|zum inhalt|springen|aller au contenu/i.test(`${textOf(inner)} ${a.class ?? ''}`));
+  const unnamed = [...anchors.filter(({ a }) => a.href !== undefined), ...buttons].filter(({ a, inner }) => !accessibleName(a, inner));
+  const legal = anchors
+    .map(({ a, inner }) => ({ href: resolve(a.href ?? '', base), text: textOf(inner) }))
+    .filter((l) => l.href && (LEGAL_LINK.test(new URL(l.href).pathname) || LEGAL_LINK.test(l.text)));
+  return {
     skipLink: skip ? { href: skip.a.href, text: textOf(skip.inner), targetExists: ids.has(skip.a.href.slice(1)) } : null,
     unnamedControls: { count: unnamed.length, examples: unnamed.slice(0, MAX_CONTROLS).map((c) => c.outer.replace(/\s+/g, ' ').slice(0, 160)) },
-    legalLinks: [
-      ...new Map(
-        anchors
-          .map(({ a, inner }) => ({ href: resolve(a.href ?? '', base), text: textOf(inner) }))
-          .filter((l) => l.href && (LEGAL_LINK.test(new URL(l.href).pathname) || LEGAL_LINK.test(l.text)))
-          .map((l) => [l.href, l]),
-      ).values(),
-    ].slice(0, 20),
-    bodyTextLength: text.length,
+    legalLinks: [...new Map(legal.map((l) => [l.href, l])).values()].slice(0, MAX_LEGAL_LINKS),
+  };
+}
+
+function linkFacts({ pageUrl, body, base }, anchors) {
+  const origin = new URL(pageUrl).origin;
+  const internal = new Set();
+  for (const { a } of anchors) {
+    const href = a.href === undefined ? null : resolve(a.href, base);
+    if (href && new URL(href).origin === origin) internal.add(href.replace(/#.*$/, ''));
+  }
+  const mount = body.match(/<div\b[^>]*\bid\s*=\s*["']?(root|app|__next|svelte|q-app)["']?[^>]*>\s*<\/div>/i);
+  return {
+    bodyTextLength: body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length,
     emptyMount: mount ? mount[1] : null,
     internalLinks: { count: internal.size, urls: [...internal].slice(0, MAX_LINKS) },
   };
 }
 
-function textOf(html) {
-  return decodeEntities(html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+// Every fact of a page's HTML.
+function parseHtml(html, pageUrl) {
+  const doc = readDocument(html, pageUrl);
+  const anchors = anchorsOf(doc);
+  return { ...headFacts(doc), ...assetFacts(doc), ...a11yFacts(doc, anchors), ...linkFacts(doc, anchors) };
 }
 
 // A link or button has a name from its text, an image alt inside it, or aria-label, aria-labelledby or title.
@@ -318,6 +328,11 @@ function collectTypes(node, out = new Set()) {
 }
 
 // --- Images ---
+
+// Image facts (format, pixel size, bytes) for preview images, icons and manifest icons, read from the file's first bytes.
+
+const IMAGE_RANGE = 'bytes=0-65535';
+const IMAGE_ACCEPT = 'image/*,*/*';
 
 // Format and pixel size from the first bytes of an image file, or null when the format is unknown.
 function imageSize(b) {
@@ -375,30 +390,35 @@ function webpSize(b) {
 
 // Pages often share one preview image or icon, so each URL is fetched once per run.
 const imageCache = new Map();
-function probeImage(url) {
-  if (!imageCache.has(url)) imageCache.set(url, fetchImage(url));
+function probeImage(ctx, url) {
+  if (!imageCache.has(url)) imageCache.set(url, attempt(ctx, url, () => fetchImage(url)));
   return imageCache.get(url);
 }
 
 async function fetchImage(url) {
-  if (!url) return { error: 'invalid URL' };
-  if (skipHost(url)) return { skipped: 'local or private host' };
-  try {
-    // A range request reads only the header bytes; a full GET follows when the size sits further in (large JPEG metadata).
-    let { res, body, redirects, finalUrl } = await fetchChain(url, { range: IMAGE_RANGE, accept: 'image/*,*/*' });
-    let size = res.status === 200 || res.status === 206 ? imageSize(body) : null;
-    if (res.status === 206 && !size?.width) {
-      ({ res, body, redirects, finalUrl } = await fetchChain(url, { accept: 'image/*,*/*' }));
-      size = imageSize(body);
-    }
-    const total = res.status === 206 ? Number(res.headers.get('content-range')?.split('/')[1]) || null : body.length;
-    return { finalUrl, status: res.status, redirects, contentType: res.headers.get('content-type'), bytes: total, format: null, width: null, height: null, ...size };
-  } catch (error) {
-    return { error: errorText(error) };
+  // A range request reads only the header bytes; a full GET follows when the size sits further in (large JPEG metadata).
+  let { res, body, redirects, finalUrl } = await fetchChain(url, { range: IMAGE_RANGE, accept: IMAGE_ACCEPT });
+  let size = res.status === 200 || res.status === 206 ? imageSize(body) : null;
+  if (res.status === 206 && !size?.width) {
+    ({ res, body, redirects, finalUrl } = await fetchChain(url, { accept: IMAGE_ACCEPT }));
+    size = imageSize(body);
   }
+  const total = res.status === 206 ? Number(res.headers.get('content-range')?.split('/')[1]) || null : body.length;
+  return { finalUrl, status: res.status, redirects, contentType: res.headers.get('content-type'), bytes: total, format: null, width: null, height: null, ...size };
 }
 
-// --- robots.txt ---
+// --- robots.txt and sitemaps ---
+
+// robots.txt (parsed, with Google's matching for Googlebot and AI crawlers) and the sitemap walk.
+
+const MAX_OTHER_LINES = 20;
+const MAX_SITEMAPS = 50;
+const MAX_SITEMAP_URLS = 500;
+const SITEMAP_GUESSES = ['/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml'];
+const AI_CRAWLERS = ['GPTBot', 'OAI-SearchBot', 'ClaudeBot', 'Claude-SearchBot', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'PerplexityBot'];
+
+const robotsRequest = (origin) => ({ url: `${origin}/robots.txt`, purpose: 'robots.txt' });
+const sitemapGuessRequests = (origin) => SITEMAP_GUESSES.map((path) => ({ url: origin + path, purpose: 'sitemap guess, only when robots.txt lists none' }));
 
 function parseRobots(text) {
   const groups = [];
@@ -449,13 +469,12 @@ function robotsVerdict(groups, agent, path, fallback) {
   };
 }
 
-async function probeRobots(origin) {
-  const url = `${origin}/robots.txt`;
-  try {
+async function probeRobots(ctx, origin) {
+  const { url } = robotsRequest(origin);
+  const facts = await attempt(ctx, url, async () => {
     const { res, body, redirects, finalUrl } = await fetchChain(url);
     const parsed = res.status === 200 ? parseRobots(body.toString('utf8')) : { groups: [], sitemaps: [], otherLines: [] };
     return {
-      url,
       finalUrl,
       status: res.status,
       redirects,
@@ -465,12 +484,9 @@ async function probeRobots(origin) {
       googlebot: robotsVerdict(parsed.groups, 'Googlebot', '/'),
       aiCrawlers: Object.fromEntries(AI_CRAWLERS.map((bot) => [bot, robotsVerdict(parsed.groups, bot, '/')])),
     };
-  } catch (error) {
-    return { url, error: errorText(error), groups: [], sitemaps: [], otherLines: [] };
-  }
+  });
+  return { url, groups: [], sitemaps: [], otherLines: [], ...facts };
 }
-
-// --- Sitemaps ---
 
 function parseSitemap(body) {
   const raw = body[0] === 0x1f && body[1] === 0x8b ? gunzipSync(body) : body;
@@ -481,42 +497,64 @@ function parseSitemap(body) {
   return { kind, locs, lastmods };
 }
 
+// The root is every sitemap robots.txt declares, else the first guess that answers 200 with XML. Index children are
+// then walked once each, keyed by final URL, so a guess that redirects to an index already read is not counted twice.
 async function probeSitemaps(origin, declared) {
-  const queue = declared.length ? [...declared] : [];
-  const guesses = declared.length ? [] : SITEMAP_GUESSES.map((p) => origin + p);
   const files = [];
+  const read = new Set();
   const urls = new Set();
   const hosts = {};
   const lastmods = new Set();
   let urlCount = 0;
   let lastmodCount = 0;
 
-  while ((queue.length || guesses.length) && files.length < MAX_SITEMAPS) {
-    const fromGuess = !queue.length;
-    const url = queue.shift() ?? guesses.shift();
+  // Fetches one file and records it; returns its parsed content when it answered 200 and was not read before.
+  const fetchFile = async (url) => {
     const file = { url };
     files.push(file);
     try {
       const { res, body, redirects, finalUrl } = await fetchChain(url);
       Object.assign(file, { finalUrl, status: res.status, redirects, contentType: res.headers.get('content-type'), bytes: body.length });
-      if (res.status !== 200) continue;
-      const { kind, locs, lastmods: mods } = parseSitemap(body);
-      Object.assign(file, { kind, locs: locs.length, lastmods: mods.length });
-      if (kind === 'sitemapindex') queue.push(...locs);
-      if (kind !== 'urlset') continue;
-      urlCount += locs.length;
-      lastmodCount += mods.length;
-      mods.forEach((m) => lastmods.add(m));
-      for (const loc of locs) {
-        if (urls.size < MAX_SITEMAP_URLS) urls.add(loc);
-        const resolved = resolve(loc, origin);
-        const host = resolved ? new URL(resolved).origin : 'invalid';
-        hosts[host] = (hosts[host] ?? 0) + 1;
-      }
-      if (fromGuess) guesses.length = 0;
+      if (res.status !== 200 || read.has(finalUrl)) return null;
+      read.add(url).add(finalUrl);
+      const parsed = parseSitemap(body);
+      Object.assign(file, { kind: parsed.kind, locs: parsed.locs.length, lastmods: parsed.lastmods.length });
+      return parsed;
     } catch (error) {
       file.error = errorText(error);
+      return null;
     }
+  };
+
+  const queue = [...declared];
+  const take = ({ kind, locs, lastmods: mods }) => {
+    if (kind === 'sitemapindex') queue.push(...locs.filter((loc) => !read.has(loc)));
+    if (kind !== 'urlset') return;
+    urlCount += locs.length;
+    lastmodCount += mods.length;
+    mods.forEach((m) => lastmods.add(m));
+    for (const loc of locs) {
+      if (urls.size < MAX_SITEMAP_URLS) urls.add(loc);
+      const resolved = resolve(loc, origin);
+      const host = resolved ? new URL(resolved).origin : 'invalid';
+      hosts[host] = (hosts[host] ?? 0) + 1;
+    }
+  };
+
+  if (!declared.length) {
+    for (const { url } of sitemapGuessRequests(origin)) {
+      const parsed = await fetchFile(url);
+      if (parsed && parsed.kind !== 'not-xml') {
+        take(parsed);
+        break;
+      }
+    }
+  }
+  while (queue.length && files.length < MAX_SITEMAPS) {
+    const url = queue.shift();
+    if (read.has(url)) continue;
+    const parsed = await fetchFile(url);
+    if (parsed) take(parsed);
   }
 
   return {
@@ -532,6 +570,14 @@ async function probeSitemaps(origin, declared) {
 }
 
 // --- DNS ---
+
+// DNS facts: search engine verification tokens, and mail authentication (MX, SPF, DMARC, DKIM) for the mail check.
+
+// Common DKIM selectors of mail providers (Google, Microsoft 365, Mailchimp/Mandrill, SendGrid, Resend, Postmark, Zoho, generic).
+const DKIM_SELECTORS = ['google', 'selector1', 'selector2', 'k1', 'k2', 'k3', 's1', 's2', 'resend', 'pm', 'mandrill', 'zoho', 'mail', 'dkim', 'default', 'smtp'];
+
+// The names whose TXT records can hold a verification token: the host and the host without www.
+const verificationNames = (hostname) => [...new Set([hostname, hostname.replace(/^www\./, '')])];
 
 // TXT records of a name, each joined from its 255-byte chunks, or { error }.
 async function txtRecords(name) {
@@ -553,68 +599,88 @@ async function txtRecords(name) {
 
 async function dnsVerification(hostname) {
   const out = {};
-  for (const name of new Set([hostname, hostname.replace(/^www\./, '')])) {
+  for (const name of verificationNames(hostname)) {
     const records = await txtRecords(name);
     out[name] = Array.isArray(records) ? records.filter((t) => /^(google-site-verification|yandex-verification)/i.test(t)) : records;
   }
   return out;
 }
 
-// --- Pages ---
-
-async function probePage(url, robots, siteFacts) {
-  try {
-    const { res, body, redirects, setCookies, finalUrl, ms } = await fetchChain(url);
-    const text = body.toString('utf8');
-    const headers = headerObject(res);
-    const contentType = headers['content-type'] ?? null;
-    // robots.txt only governs its own origin, so a cross-origin redirect is judged on the requested path.
-    const final = new URL(finalUrl);
-    const judged = final.origin === new URL(url).origin ? final : new URL(url);
-    const page = {
-      url,
-      finalUrl,
-      status: res.status,
-      redirects,
-      ms,
-      blocked: blockedBy(res, text),
-      platform: platformOf(headers),
-      contentType,
-      bytes: body.length,
-      headers,
-      xRobotsTag: headers['x-robots-tag'] ?? null,
-      canonicalHeader: canonicalFromLinkHeader(headers.link),
-      robotsTxt: robots ? { path: judged.pathname + judged.search, ...robotsVerdict(robots.groups, 'Googlebot', judged.pathname + judged.search) } : null,
-      html: /html/i.test(contentType ?? '') ? parseHtml(text, finalUrl) : null,
-      canonicalTarget: null,
-    };
-    page.security = securityFacts(headers, page.html, setCookies);
-    const canonical = page.html?.canonicals[0]?.resolved ?? resolve(page.canonicalHeader ?? '', finalUrl);
-    if (canonical && canonical.replace(/#.*$/, '') !== finalUrl) page.canonicalTarget = await probeTarget(canonical);
-    if (page.html) {
-      page.socialImages = await socialImages(page.html);
-      page.icons = siteFacts ? await probeIcons(page.html, page, robots) : null;
-      page.manifest = siteFacts ? await probeManifest(page.html.manifest) : null;
-      page.scrapers = siteFacts ? await probeScrapers(url) : null;
-      page.assets = siteFacts ? await probeAssets(page) : null;
-    }
-    return page;
-  } catch (error) {
-    return { url, error: errorText(error) };
-  }
+function tagValue(record, tag) {
+  return record.match(new RegExp(`(?:^|;)\\s*${tag}\\s*=\\s*([^;]+)`, 'i'))?.[1].trim() ?? null;
 }
 
-async function probeTarget(url) {
-  if (skipHost(url)) return { url, skipped: 'local or private host' };
-  try {
-    const { res, redirects, finalUrl } = await fetchChain(url);
-    return { url, finalUrl, status: res.status, redirects };
-  } catch (error) {
-    return { url, error: errorText(error) };
+async function mailDns(domain, extraSelectors) {
+  const mx = await resolveMx(domain).then(
+    (records) => records.sort((a, b) => a.priority - b.priority).map(({ exchange, priority }) => ({ exchange, priority })),
+    (error) => ({ error: error.code ?? error.message }),
+  );
+  const root = await txtRecords(domain);
+  const spf = Array.isArray(root) ? root.filter((t) => /^v=spf1\b/i.test(t)) : root;
+  const dmarcTxt = await txtRecords(`_dmarc.${domain}`);
+  const dmarc = Array.isArray(dmarcTxt) ? dmarcTxt.filter((t) => /^v=DMARC1\b/i.test(t)) : dmarcTxt;
+  const selectors = [...new Set([...extraSelectors, ...DKIM_SELECTORS])];
+  const dkimFound = {};
+  for (const selector of selectors) {
+    const records = await txtRecords(`${selector}._domainkey.${domain}`);
+    const key = Array.isArray(records) ? records.find((t) => /\bp=/i.test(t)) : null;
+    if (!key) continue;
+    const p = tagValue(key, 'p') ?? '';
+    const type = tagValue(key, 'k') ?? 'rsa';
+    // An RSA public key's DER encoding is about 38 bytes plus the modulus, so this rounds to the key size.
+    const bytes = Buffer.from(p, 'base64').length;
+    dkimFound[selector] = { type, revoked: p === '', approxBits: type === 'rsa' && bytes ? Math.round(((bytes - 38) * 8) / 1024) * 1024 : null };
   }
+  const first = Array.isArray(spf) ? spf[0] : null;
+  const policy = Array.isArray(dmarc) ? dmarc[0] : null;
+  return {
+    domain,
+    mx,
+    spf: Array.isArray(spf)
+      ? { records: spf, all: first?.match(/([~?+-]?)all\b/i)?.[0] ?? null, lookups: first ? first.split(/\s+/).filter((term) => /^[+~?-]?(include|a|mx|ptr|exists)([:/]|$)|^redirect=/i.test(term)).length : 0 }
+      : spf,
+    dmarc: Array.isArray(dmarc)
+      ? { records: dmarc, p: policy && tagValue(policy, 'p'), sp: policy && tagValue(policy, 'sp'), rua: policy && tagValue(policy, 'rua'), pct: policy && tagValue(policy, 'pct') }
+      : dmarc,
+    dkim: { checked: selectors, found: dkimFound },
+  };
 }
 
 // --- Security ---
+
+// Security facts: response headers and cookies per page; TLS, exposed files, GraphQL introspection and CORS per site.
+
+const EVIL_ORIGIN = 'https://evil.example';
+const GRAPHQL_PATHS = ['/graphql', '/api/graphql'];
+const INTROSPECTION_QUERY = '{__schema{queryType{name}}}';
+const GRAPHQL_ACCEPT = 'application/graphql-response+json,application/json';
+const PROBE_RANGE = 'bytes=0-4095';
+// Paths that must never be public, each with a check on the body so an SPA fallback page is not mistaken for the file.
+const dotenv = (b) => /^\s*(export\s+)?[A-Z_][A-Z0-9_]*\s*=/m.test(b.toString('utf8'));
+const sqlDump = (b) => /\b(CREATE TABLE|INSERT INTO)\b/i.test(b.toString('utf8'));
+const EXPOSED_FILES = {
+  '/.env': dotenv,
+  '/.env.local': dotenv,
+  '/.env.production': dotenv,
+  '/.git/HEAD': (b) => /^(ref: refs\/|[0-9a-f]{40}\s*$)/.test(b.toString('utf8')),
+  '/.git/config': (b) => /^\s*\[core\]/m.test(b.toString('utf8')),
+  '/.DS_Store': (b) => b.toString('latin1', 4, 8) === 'Bud1',
+  '/.npmrc': (b) => /_authToken|^\s*registry\s*=/m.test(b.toString('utf8')),
+  '/backup.zip': (b) => b.toString('latin1', 0, 4) === 'PK\x03\x04',
+  '/backup.tar.gz': (b) => b[0] === 0x1f && b[1] === 0x8b,
+  '/backup.sql': sqlDump,
+  '/dump.sql': sqlDump,
+  '/database.sql': sqlDump,
+};
+
+const exposedFileRequests = (origin) =>
+  Object.entries(EXPOSED_FILES).map(([path, looksReal]) => ({ path, looksReal, url: origin + path, purpose: 'exposed file check (first 4 KB)', headers: { range: PROBE_RANGE } }));
+const graphqlRequests = (origin) =>
+  GRAPHQL_PATHS.map((path) => ({ path, url: `${origin}${path}?query=${encodeURIComponent(INTROSPECTION_QUERY)}`, purpose: 'GraphQL introspection check', headers: { accept: GRAPHQL_ACCEPT } }));
+const corsRequest = (url) => ({ url, purpose: 'CORS check', headers: { origin: EVIL_ORIGIN } });
+// The homepage and each --api path; GraphQL paths that answer as GraphQL are added at run time.
+const corsRequests = (origin, apiPaths) => [`${origin}/`, ...apiPaths.map((p) => new URL(p, origin).href)].map(corsRequest);
+const tlsHosts = (origin) => (isRemoteHttps(origin) ? [new URL(origin).hostname, twinHost(new URL(origin).hostname)] : []);
 
 function parseCsp(value) {
   if (!value) return null;
@@ -660,11 +726,6 @@ function securityFacts(headers, html, setCookies) {
   };
 }
 
-// The www or apex twin of a host: users type either, so both need a valid certificate.
-function twinHost(host) {
-  return host.startsWith('www.') ? host.slice(4) : `www.${host}`;
-}
-
 function certCovers(names, host) {
   return names.some((n) => n === host || (n.startsWith('*.') && host.endsWith(n.slice(1)) && host.split('.').length === n.split('.').length));
 }
@@ -702,126 +763,74 @@ async function tlsFacts(host) {
   });
 }
 
-async function probeExposed(origin) {
-  const out = [];
-  for (const [path, looksReal] of Object.entries(EXPOSED_FILES)) {
-    try {
-      const { res, body, finalUrl } = await fetchChain(origin + path, { range: PROBE_RANGE });
-      const ok = res.status === 200 || res.status === 206;
-      out.push({ path, status: res.status, finalUrl, contentType: res.headers.get('content-type'), exposed: ok && looksReal(body) });
-    } catch (error) {
-      out.push({ path, error: errorText(error) });
-    }
-  }
-  return out;
-}
-
-async function probeGraphql(origin) {
-  const out = [];
-  for (const path of GRAPHQL_PATHS) {
-    const url = `${origin}${path}?query=${encodeURIComponent(INTROSPECTION_QUERY)}`;
-    try {
-      const { res, body } = await fetchChain(url, { accept: 'application/graphql-response+json,application/json' });
-      const text = body.toString('utf8', 0, 20000);
-      out.push({
-        path,
+async function probeCors(ctx, { url, headers }) {
+  return {
+    url,
+    ...(await attempt(ctx, url, async () => {
+      const { res } = await fetchChain(url, headers);
+      const allowOrigin = res.headers.get('access-control-allow-origin');
+      return {
         status: res.status,
-        contentType: res.headers.get('content-type'),
-        graphql: /^\s*\{\s*"(data|errors)"/.test(text),
-        introspection: /"__schema"\s*:\s*\{/.test(text),
-      });
-    } catch (error) {
-      out.push({ path, error: errorText(error) });
-    }
-  }
-  return out;
+        allowOrigin,
+        allowCredentials: res.headers.get('access-control-allow-credentials'),
+        reflected: allowOrigin === EVIL_ORIGIN,
+        vary: res.headers.get('vary'),
+      };
+    })),
+  };
 }
 
-async function probeCors(url) {
-  try {
-    const { res } = await fetchChain(url, { origin: EVIL_ORIGIN });
-    const allowOrigin = res.headers.get('access-control-allow-origin');
-    return {
-      url,
-      status: res.status,
-      allowOrigin,
-      allowCredentials: res.headers.get('access-control-allow-credentials'),
-      reflected: allowOrigin === EVIL_ORIGIN,
-      vary: res.headers.get('vary'),
-    };
-  } catch (error) {
-    return { url, error: errorText(error) };
+async function probeSiteSecurity(ctx, origin, apiPaths) {
+  const tls = [];
+  for (const host of tlsHosts(origin)) tls.push(await tlsFacts(host));
+  const exposedFiles = [];
+  for (const { path, looksReal, url, headers } of exposedFileRequests(origin)) {
+    exposedFiles.push({
+      path,
+      ...(await attempt(ctx, url, async () => {
+        const { res, body, finalUrl } = await fetchChain(url, headers);
+        const ok = res.status === 200 || res.status === 206;
+        return { status: res.status, finalUrl, contentType: res.headers.get('content-type'), exposed: ok && looksReal(body) };
+      })),
+    });
   }
-}
-
-async function probeSiteSecurity(origin, apiPaths) {
-  const { protocol, hostname } = new URL(origin);
-  const graphql = await probeGraphql(origin);
-  const corsUrls = [origin + '/', ...graphql.filter((g) => g.graphql).map((g) => origin + g.path), ...apiPaths.map((p) => new URL(p, origin).href)];
+  const graphql = [];
+  for (const { path, url, headers } of graphqlRequests(origin)) {
+    graphql.push({
+      path,
+      ...(await attempt(ctx, url, async () => {
+        const { res, body } = await fetchChain(url, headers);
+        const text = body.toString('utf8', 0, 20000);
+        return {
+          status: res.status,
+          contentType: res.headers.get('content-type'),
+          graphql: /^\s*\{\s*"(data|errors)"/.test(text),
+          introspection: /"__schema"\s*:\s*\{/.test(text),
+        };
+      })),
+    });
+  }
+  const [home, ...api] = corsRequests(origin, apiPaths);
+  const corsTargets = [home, ...graphql.filter((g) => g.graphql).map((g) => corsRequest(origin + g.path)), ...api];
   const cors = [];
-  for (const url of corsUrls) cors.push(await probeCors(url));
-  const local = LOCAL_HOST.test(hostname);
-  return {
-    tls: protocol === 'https:' && !local ? [await tlsFacts(hostname), await tlsFacts(twinHost(hostname))] : null,
-    exposedFiles: await probeExposed(origin),
-    graphql,
-    cors,
-  };
-}
-
-// Every request a run sends, printed before any is sent. Requests that depend on responses are described, not listed.
-function plannedRequests(urls, pagesOnly, apiPaths) {
-  const origins = [...new Set(urls.map((u) => new URL(u).origin))];
-  const get = [];
-  const add = (url, purpose, headers) => get.push({ method: 'GET', url, purpose, ...(headers ? { headers } : {}) });
-  for (const origin of origins) add(`${origin}/robots.txt`, 'robots.txt');
-  for (const url of urls) add(url, 'page');
-  if (pagesOnly) return { get, dependent: ['each canonical target that differs from its page', 'each preview image (og:image, twitter:image)'] };
-  for (const origin of origins) {
-    for (const path of SITEMAP_GUESSES) add(origin + path, 'sitemap guess, only when robots.txt lists none');
-    add(`${origin}/favicon.ico`, 'favicon');
-    add(`${origin}/apple-touch-icon.png`, 'apple-touch-icon fallback, only when none is linked');
-    for (const path of Object.keys(EXPOSED_FILES)) add(origin + path, 'exposed file check (first 4 KB)', { range: PROBE_RANGE });
-    for (const path of GRAPHQL_PATHS) add(`${origin}${path}?query=${encodeURIComponent(INTROSPECTION_QUERY)}`, 'GraphQL introspection check');
-    add(`${origin}/`, 'CORS check', { origin: EVIL_ORIGIN });
-    add(`${origin}${NOT_FOUND_PREFIX}<random>`, 'deliberate 404');
-    for (const [name, paths] of Object.entries(WELL_KNOWN)) paths.forEach((path, i) => add(origin + path, i ? `${name} fallback, only when the first path fails` : name));
-    const { protocol, hostname } = new URL(origin);
-    if (protocol === 'https:' && !LOCAL_HOST.test(hostname)) {
-      add(`http://${hostname}/`, 'http to https redirect');
-      add(`https://${twinHost(hostname)}/`, 'www or apex redirect');
-    }
-    for (const path of apiPaths) add(new URL(path, origin).href, 'CORS check', { origin: EVIL_ORIGIN });
-  }
-  for (const url of urls) for (const [name, ua] of Object.entries(SCRAPERS)) add(url, `re-fetch as ${name}`, { 'user-agent': ua });
-  const hosts = origins.map((o) => new URL(o)).filter((u) => u.protocol === 'https:' && !LOCAL_HOST.test(u.hostname)).map((u) => u.hostname);
-  return {
-    get,
-    tls: hosts.flatMap((h) => [h, twinHost(h)]).map((host) => `${host}:443 (handshake, certificate read)`),
-    dns: origins.map((o) => new URL(o).hostname).flatMap((h) => [...new Set([h, h.replace(/^www\./, '')])].map((n) => `TXT ${n}`)),
-    dependent: [
-      'sitemap files named in robots.txt and in sitemap indexes (up to 50)',
-      'each canonical target that differs from its page',
-      'each preview image, linked icon, the manifest and its icons',
-      'CORS check on each GraphQL path that answers as GraphQL',
-      'the first internal link with its trailing slash toggled',
-      `homepage scripts (up to ${MAX_SCRIPTS}), stylesheets (up to ${MAX_STYLESHEETS}) and images (up to ${MAX_IMAGES}), in full`,
-    ],
-  };
+  for (const request of corsTargets) cors.push(await probeCors(ctx, request));
+  return { tls: tls.length ? tls : null, exposedFiles, graphql, cors };
 }
 
 // --- Routing ---
 
-function chainFacts({ res, redirects, finalUrl }) {
-  return { status: res.status, finalUrl, redirects };
-}
+// Routing facts: a deliberate 404, http to https and www or apex redirects, and trailing-slash handling.
 
-async function chainOrError(url) {
-  try {
-    return { url, ...chainFacts(await fetchChain(url)) };
-  } catch (error) {
-    return { url, error: errorText(error) };
-  }
+const NOT_FOUND_PREFIX = '/web-ready-audit-404-';
+
+const notFoundRequest = (origin, token) => ({ url: `${origin}${NOT_FOUND_PREFIX}${token}`, purpose: 'deliberate 404' });
+function redirectRequests(origin) {
+  if (!isRemoteHttps(origin)) return [];
+  const { hostname } = new URL(origin);
+  return [
+    { name: 'httpToHttps', url: `http://${hostname}/`, purpose: 'http to https redirect' },
+    { name: 'twinHost', url: `https://${twinHost(hostname)}/`, purpose: 'www or apex redirect' },
+  ];
 }
 
 // The same path with the trailing slash toggled, from the first internal link that has a path.
@@ -833,36 +842,45 @@ function trailingSlashTwin(page) {
   return { link: link.href, twin: twin.href };
 }
 
-async function probeRouting(origin, homepage) {
-  const { protocol, hostname } = new URL(origin);
-  const remote = protocol === 'https:' && !LOCAL_HOST.test(hostname);
-  const notFoundUrl = `${origin}${NOT_FOUND_PREFIX}${Math.random().toString(36).slice(2, 10)}`;
-  let notFound;
-  try {
-    const got = await fetchChain(notFoundUrl);
-    const html = /html/i.test(got.res.headers.get('content-type') ?? '') ? parseHtml(got.body.toString('utf8'), got.finalUrl) : null;
-    notFound = {
-      url: notFoundUrl,
-      ...chainFacts(got),
-      contentType: got.res.headers.get('content-type'),
-      title: html?.titles[0] ?? null,
-      sameTitleAsHome: Boolean(html?.titles[0]) && html.titles[0] === homepage?.html?.titles[0],
-      metaRobots: html?.metaRobots ?? [],
-      internalLinkCount: html?.internalLinks.count ?? 0,
-    };
-  } catch (error) {
-    notFound = { url: notFoundUrl, error: errorText(error) };
-  }
-  const slash = homepage ? trailingSlashTwin(homepage) : null;
+async function probeNotFound(ctx, origin, homepage) {
+  const { url } = notFoundRequest(origin, Math.random().toString(36).slice(2, 10));
   return {
-    notFound,
-    httpToHttps: remote ? await chainOrError(`http://${hostname}/`) : null,
-    twinHost: remote ? await chainOrError(`https://${twinHost(hostname)}/`) : null,
-    trailingSlash: slash ? { link: slash.link, ...(await chainOrError(slash.twin)) } : null,
+    url,
+    ...(await attempt(ctx, url, async () => {
+      const { res, body, redirects, finalUrl } = await fetchChain(url);
+      const contentType = res.headers.get('content-type');
+      const doc = /html/i.test(contentType ?? '') ? readDocument(body.toString('utf8'), finalUrl) : null;
+      const head = doc && headFacts(doc);
+      const title = head?.titles[0] ?? null;
+      return {
+        status: res.status,
+        finalUrl,
+        redirects,
+        contentType,
+        title,
+        sameTitleAsHome: Boolean(title) && title === homepage?.html?.titles[0],
+        metaRobots: head?.metaRobots ?? [],
+        internalLinkCount: doc ? linkFacts(doc, anchorsOf(doc)).internalLinks.count : 0,
+      };
+    })),
   };
 }
 
+async function probeRouting(ctx, origin, homepage) {
+  const routing = { notFound: await probeNotFound(ctx, origin, homepage), httpToHttps: null, twinHost: null };
+  for (const { name, url } of redirectRequests(origin)) routing[name] = { url, ...(await attempt(ctx, url, () => chain(url))) };
+  const slash = homepage ? trailingSlashTwin(homepage) : null;
+  routing.trailingSlash = slash ? { link: slash.link, url: slash.twin, ...(await attempt(ctx, slash.twin, () => chain(slash.twin))) } : null;
+  return routing;
+}
+
 // --- Assets ---
+
+// Asset facts for the homepage: size, compression, cache headers and content hashing of scripts, stylesheets and images.
+
+const MAX_SCRIPTS = 20;
+const MAX_STYLESHEETS = 10;
+const MAX_IMAGES = 10;
 
 // A content hash in the file name: a dot- or dash-separated part of 8+ characters that mixes letters with digits,
 // or holds 3+ capitals among lowercase (Vite's base64 hashes, such as DKMfOyQO).
@@ -876,36 +894,36 @@ function siteOf(hostname) {
   return hostname.replace(/^www\./, '').split('.').slice(-2).join('.');
 }
 
-async function fetchAsset(url, pageHost) {
+async function fetchAsset(ctx, url, pageHost) {
   const thirdParty = siteOf(new URL(url).hostname) !== siteOf(pageHost);
-  if (skipHost(url)) return { url, thirdParty, skipped: 'local or private host' };
-  try {
-    const { res, body, finalUrl } = await fetchChain(url);
-    return {
-      url,
-      finalUrl,
-      thirdParty,
-      status: res.status,
-      contentType: res.headers.get('content-type'),
-      bytes: body.length,
-      encodedBytes: Number(res.headers.get('content-length')) || null,
-      contentEncoding: res.headers.get('content-encoding'),
-      cacheControl: res.headers.get('cache-control'),
-      hashed: looksHashed(finalUrl),
-    };
-  } catch (error) {
-    return { url, thirdParty, error: errorText(error) };
-  }
+  return {
+    url,
+    thirdParty,
+    ...(await attempt(ctx, url, async () => {
+      const { res, body, finalUrl } = await fetchChain(url);
+      return {
+        finalUrl,
+        status: res.status,
+        contentType: res.headers.get('content-type'),
+        bytes: body.length,
+        encodedBytes: Number(res.headers.get('content-length')) || null,
+        contentEncoding: res.headers.get('content-encoding'),
+        cacheControl: res.headers.get('cache-control'),
+        hashed: looksHashed(finalUrl),
+      };
+    })),
+  };
 }
 
-async function probeAssets(page) {
+async function probeAssets(ctx, page) {
   const pageHost = new URL(page.finalUrl).hostname;
+  const fetchable = (url) => /^https?:/.test(url ?? '');
   const scripts = [];
-  for (const s of page.html.scripts.slice(0, MAX_SCRIPTS)) if (/^https?:/.test(s.src ?? '')) scripts.push({ ...s, ...(await fetchAsset(s.src, pageHost)) });
+  for (const s of page.html.scripts.slice(0, MAX_SCRIPTS)) if (fetchable(s.src)) scripts.push({ ...s, ...(await fetchAsset(ctx, s.src, pageHost)) });
   const stylesheets = [];
-  for (const href of page.html.stylesheets.slice(0, MAX_STYLESHEETS)) if (/^https?:/.test(href ?? '')) stylesheets.push(await fetchAsset(href, pageHost));
+  for (const href of page.html.stylesheets.slice(0, MAX_STYLESHEETS)) if (fetchable(href)) stylesheets.push(await fetchAsset(ctx, href, pageHost));
   const images = [];
-  for (const img of page.html.images.filter((i) => /^https?:/.test(i.src ?? '')).slice(0, MAX_IMAGES)) images.push({ ...img, ...(await probeImage(img.src)) });
+  for (const img of page.html.images.filter((i) => fetchable(i.src)).slice(0, MAX_IMAGES)) images.push({ ...img, ...(await probeImage(ctx, img.src)) });
   const sum = (list, key) => list.reduce((n, a) => n + (a[key] ?? 0), 0);
   return {
     scripts,
@@ -922,6 +940,8 @@ async function probeAssets(page) {
 }
 
 // --- Well-known files ---
+
+// Well-known files: security.txt, ads.txt and the iOS and Android app-link files.
 
 function parseSecurityTxt(text) {
   const field = (name) => [...text.matchAll(new RegExp(`^${name}:\\s*(.+)$`, 'gim'))].map((m) => m[1].trim());
@@ -951,80 +971,60 @@ function parseJsonFile(text) {
   }
 }
 
-const WELL_KNOWN_PARSERS = { securityTxt: parseSecurityTxt, adsTxt: parseAdsTxt, appleAppSiteAssociation: parseJsonFile, assetLinks: parseJsonFile };
+// Each file's paths in the order tried, and the parser for its body.
+const WELL_KNOWN = {
+  securityTxt: { paths: ['/.well-known/security.txt', '/security.txt'], parse: parseSecurityTxt },
+  adsTxt: { paths: ['/ads.txt'], parse: parseAdsTxt },
+  appleAppSiteAssociation: { paths: ['/.well-known/apple-app-site-association', '/apple-app-site-association'], parse: parseJsonFile },
+  assetLinks: { paths: ['/.well-known/assetlinks.json'], parse: parseJsonFile },
+};
+
+const wellKnownRequests = (origin) =>
+  Object.entries(WELL_KNOWN).flatMap(([name, { paths }]) =>
+    paths.map((path, i) => ({ name, path, url: origin + path, purpose: i ? `${name} fallback, only when the first path fails` : name })));
 
 // The first path of each file that answers 200 with a non-HTML body, else the last answer; `tried` lists every path's status.
-async function probeWellKnown(origin) {
+async function probeWellKnown(ctx, origin) {
   const out = {};
-  for (const [name, paths] of Object.entries(WELL_KNOWN)) {
-    const tried = [];
-    for (const path of paths) {
-      try {
-        const { res, body, redirects, finalUrl } = await fetchChain(origin + path);
-        const contentType = res.headers.get('content-type');
-        tried.push({ path, status: res.status, redirects: redirects.length });
-        out[name] = { path, status: res.status, finalUrl, redirects, contentType, bytes: body.length, tried };
-        if (res.status === 200 && !/html/i.test(contentType ?? '')) {
-          Object.assign(out[name], WELL_KNOWN_PARSERS[name](body.toString('utf8')));
-          break;
-        }
-      } catch (error) {
-        tried.push({ path, error: errorText(error) });
-        out[name] = { path, error: errorText(error), tried };
-      }
-    }
+  const found = new Set();
+  for (const { name, path, url } of wellKnownRequests(origin)) {
+    if (found.has(name)) continue;
+    const tried = out[name]?.tried ?? [];
+    const facts = await attempt(ctx, url, async () => {
+      const { res, body, redirects, finalUrl } = await fetchChain(url);
+      const contentType = res.headers.get('content-type');
+      const answer = { status: res.status, finalUrl, redirects, contentType, bytes: body.length };
+      if (res.status !== 200 || /html/i.test(contentType ?? '')) return answer;
+      found.add(name);
+      return { ...answer, ...WELL_KNOWN[name].parse(body.toString('utf8')) };
+    });
+    tried.push(facts.redirects ? { path, status: facts.status, redirects: facts.redirects.length } : { path, error: facts.error ?? facts.skipped });
+    out[name] = { path, ...facts, tried };
   }
   return out;
 }
 
-// --- Mail DNS ---
-
-function tagValue(record, tag) {
-  return record.match(new RegExp(`(?:^|;)\\s*${tag}\\s*=\\s*([^;]+)`, 'i'))?.[1].trim() ?? null;
-}
-
-async function mailDns(domain, extraSelectors) {
-  const mx = await resolveMx(domain).then(
-    (records) => records.sort((a, b) => a.priority - b.priority).map(({ exchange, priority }) => ({ exchange, priority })),
-    (error) => ({ error: error.code ?? error.message }),
-  );
-  const root = await txtRecords(domain);
-  const spf = Array.isArray(root) ? root.filter((t) => /^v=spf1\b/i.test(t)) : root;
-  const dmarcTxt = await txtRecords(`_dmarc.${domain}`);
-  const dmarc = Array.isArray(dmarcTxt) ? dmarcTxt.filter((t) => /^v=DMARC1\b/i.test(t)) : dmarcTxt;
-  const selectors = [...new Set([...extraSelectors, ...DKIM_SELECTORS])];
-  const dkimFound = {};
-  for (const selector of selectors) {
-    const records = await txtRecords(`${selector}._domainkey.${domain}`);
-    const key = Array.isArray(records) ? records.find((t) => /\bp=/i.test(t)) : null;
-    if (!key) continue;
-    const p = tagValue(key, 'p') ?? '';
-    const type = tagValue(key, 'k') ?? 'rsa';
-    // An RSA public key's DER encoding is about 38 bytes plus the modulus, so this rounds to the key size.
-    const bytes = Buffer.from(p, 'base64').length;
-    dkimFound[selector] = { type, revoked: p === '', approxBits: type === 'rsa' && bytes ? Math.round(((bytes - 38) * 8) / 1024) * 1024 : null };
-  }
-  const first = Array.isArray(spf) ? spf[0] : null;
-  const policy = Array.isArray(dmarc) ? dmarc[0] : null;
-  return {
-    probe: 'web-ready-audit',
-    mode: 'mail-dns',
-    runtime: runtime(),
-    domain,
-    mx,
-    spf: Array.isArray(spf)
-      ? { records: spf, all: first?.match(/([~?+-]?)all\b/i)?.[0] ?? null, lookups: first ? first.split(/\s+/).filter((term) => /^[+~?-]?(include|a|mx|ptr|exists)([:/]|$)|^redirect=/i.test(term)).length : 0 }
-      : spf,
-    dmarc: Array.isArray(dmarc)
-      ? { records: dmarc, p: policy && tagValue(policy, 'p'), sp: policy && tagValue(policy, 'sp'), rua: policy && tagValue(policy, 'rua'), pct: policy && tagValue(policy, 'pct') }
-      : dmarc,
-    dkim: { checked: selectors, found: dkimFound },
-  };
-}
-
 // --- Social previews, icons, manifest ---
 
-async function socialImages(html) {
+// Social previews, icons and the web app manifest, plus what link-preview scrapers are served.
+
+const SOCIAL_IMAGE_TAGS = ['og:image', 'og:image:url', 'og:image:secure_url', 'twitter:image', 'twitter:image:src'];
+const MAX_SOCIAL_IMAGES = 4;
+const MAX_ICONS = 10;
+const MANIFEST_FIELDS = ['id', 'name', 'short_name', 'start_url', 'scope', 'display', 'theme_color', 'background_color', 'prefer_related_applications'];
+const SCRAPERS = {
+  facebookexternalhit: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+  Twitterbot: 'Twitterbot/1.0',
+};
+
+const iconRequests = (origin) => ({
+  faviconIco: { url: `${origin}/favicon.ico`, purpose: 'favicon' },
+  appleTouchFallback: { url: `${origin}/apple-touch-icon.png`, purpose: 'apple-touch-icon fallback, only when none is linked' },
+});
+const scraperRequests = (url) =>
+  Object.entries(SCRAPERS).map(([name, ua]) => ({ name, url, purpose: `re-fetch as ${name}`, headers: { 'user-agent': ua } }));
+
+async function socialImages(ctx, html) {
   const seen = new Set();
   const out = [];
   for (const tag of SOCIAL_IMAGE_TAGS) {
@@ -1032,78 +1032,205 @@ async function socialImages(html) {
       const resolved = resolve(href, html.base);
       if (seen.has(resolved) || out.length >= MAX_SOCIAL_IMAGES) continue;
       seen.add(resolved);
-      out.push({ tag, href, resolved, ...(await probeImage(resolved)) });
+      out.push({ tag, href, resolved, ...(await probeImage(ctx, resolved)) });
     }
   }
   return out;
 }
 
-async function probeIcons(html, page, robots) {
+async function probeIcons(ctx, page, robots) {
   const origin = new URL(page.finalUrl).origin;
   const withRobots = async (icon) => {
-    const facts = { ...icon, ...(await probeImage(icon.resolved)) };
+    const facts = { ...icon, ...(await probeImage(ctx, icon.resolved)) };
     const at = icon.resolved && new URL(icon.resolved);
     if (robots && at?.origin === origin) facts.robotsTxt = robotsVerdict(robots.groups, 'Googlebot-Image', at.pathname + at.search, 'Googlebot');
     return facts;
   };
   const linked = [];
-  for (const icon of html.icons.slice(0, MAX_ICONS)) linked.push(await withRobots(icon));
-  const appleLinked = html.icons.some((i) => i.rel.startsWith('apple-touch-icon'));
+  for (const icon of page.html.icons.slice(0, MAX_ICONS)) linked.push(await withRobots(icon));
+  const appleLinked = page.html.icons.some((i) => i.rel.startsWith('apple-touch-icon'));
+  const { faviconIco, appleTouchFallback } = iconRequests(origin);
   return {
     linked,
-    faviconIco: await withRobots({ resolved: `${origin}/favicon.ico` }),
-    appleTouchFallback: appleLinked ? null : await withRobots({ resolved: `${origin}/apple-touch-icon.png` }),
+    faviconIco: await withRobots({ resolved: faviconIco.url }),
+    appleTouchFallback: appleLinked ? null : await withRobots({ resolved: appleTouchFallback.url }),
   };
 }
 
-async function probeManifest(url) {
+async function probeManifest(ctx, url) {
   if (!url) return null;
-  try {
-    const { res, body, redirects, finalUrl } = await fetchChain(url, { accept: 'application/manifest+json,application/json,*/*' });
-    const out = { url, finalUrl, status: res.status, redirects, contentType: res.headers.get('content-type') };
-    if (res.status !== 200) return out;
-    let m;
-    try {
-      m = JSON.parse(body.toString('utf8'));
-    } catch (error) {
-      return { ...out, parseError: error.message };
-    }
-    const fields = ['id', 'name', 'short_name', 'start_url', 'scope', 'display', 'theme_color', 'background_color', 'prefer_related_applications'];
-    const icons = [];
-    for (const icon of (Array.isArray(m.icons) ? m.icons : []).slice(0, MAX_ICONS)) {
-      const resolved = resolve(icon.src ?? '', finalUrl);
-      icons.push({ src: icon.src ?? null, sizes: icon.sizes ?? null, type: icon.type ?? null, purpose: icon.purpose ?? null, ...(await probeImage(resolved)) });
-    }
-    return { ...out, ...Object.fromEntries(fields.map((f) => [f, m[f] ?? null])), iconCount: Array.isArray(m.icons) ? m.icons.length : 0, icons };
-  } catch (error) {
-    return { url, error: errorText(error) };
-  }
+  return {
+    url,
+    ...(await attempt(ctx, url, async () => {
+      const { res, body, redirects, finalUrl } = await fetchChain(url, { accept: 'application/manifest+json,application/json,*/*' });
+      const out = { finalUrl, status: res.status, redirects, contentType: res.headers.get('content-type') };
+      if (res.status !== 200) return out;
+      let m;
+      try {
+        m = JSON.parse(body.toString('utf8'));
+      } catch (error) {
+        return { ...out, parseError: error.message };
+      }
+      const icons = [];
+      for (const icon of (Array.isArray(m.icons) ? m.icons : []).slice(0, MAX_ICONS)) {
+        const resolved = resolve(icon.src ?? '', finalUrl);
+        icons.push({ src: icon.src ?? null, sizes: icon.sizes ?? null, type: icon.type ?? null, purpose: icon.purpose ?? null, ...(await probeImage(ctx, resolved)) });
+      }
+      return { ...out, ...Object.fromEntries(MANIFEST_FIELDS.map((f) => [f, m[f] ?? null])), iconCount: Array.isArray(m.icons) ? m.icons.length : 0, icons };
+    })),
+  };
 }
 
 // What link-preview scrapers get: some hosts and bot rules answer them differently from a browser.
-async function probeScrapers(url) {
+async function probeScrapers(ctx, url) {
   const out = {};
-  for (const [name, ua] of Object.entries(SCRAPERS)) {
-    try {
-      const { res, body, finalUrl } = await fetchChain(url, { 'user-agent': ua });
+  for (const { name, headers } of scraperRequests(url)) {
+    out[name] = await attempt(ctx, url, async () => {
+      const { res, body, finalUrl } = await fetchChain(url, headers);
       const text = body.toString('utf8');
-      const html = /html/i.test(res.headers.get('content-type') ?? '') ? parseHtml(text, finalUrl) : null;
-      out[name] = {
+      const head = /html/i.test(res.headers.get('content-type') ?? '') ? headFacts(readDocument(text, finalUrl)) : null;
+      return {
         status: res.status,
         finalUrl,
         blocked: blockedBy(res, text),
-        ogTitle: html?.openGraph['og:title']?.[0] ?? null,
-        ogImage: html?.openGraph['og:image']?.[0] ?? null,
-        twitterCard: html?.twitter['twitter:card']?.[0] ?? null,
+        ogTitle: head?.openGraph['og:title']?.[0] ?? null,
+        ogImage: head?.openGraph['og:image']?.[0] ?? null,
+        twitterCard: head?.twitter['twitter:card']?.[0] ?? null,
       };
-    } catch (error) {
-      out[name] = { error: errorText(error) };
-    }
+    });
   }
   return out;
 }
 
+// --- Pages ---
+
+// Facts of one page: status, redirects, headers, robots verdict, raw HTML, canonical target and preview images;
+// plus the homepage-only extras (icons, manifest, scrapers, assets) a full run adds.
+
+async function probePage(ctx, url, robots) {
+  let got;
+  try {
+    got = await fetchChain(url);
+  } catch (error) {
+    return { url, error: errorText(error), inSitemap: null };
+  }
+  const { res, body, redirects, setCookies, finalUrl, ms } = got;
+  const text = body.toString('utf8');
+  const headers = headerObject(res);
+  const contentType = headers['content-type'] ?? null;
+  // robots.txt only governs its own origin, so a cross-origin redirect is judged on the requested path.
+  const final = new URL(finalUrl);
+  const judged = final.origin === new URL(url).origin ? final : new URL(url);
+  const robotsPath = judged.pathname + judged.search;
+  const html = /html/i.test(contentType ?? '') ? parseHtml(text, finalUrl) : null;
+  const page = {
+    url,
+    finalUrl,
+    status: res.status,
+    redirects,
+    ms,
+    blocked: blockedBy(res, text),
+    platform: platformOf(headers),
+    contentType,
+    bytes: body.length,
+    headers,
+    xRobotsTag: headers['x-robots-tag'] ?? null,
+    canonicalHeader: canonicalFromLinkHeader(headers.link),
+    robotsTxt: robots ? { path: robotsPath, ...robotsVerdict(robots.groups, 'Googlebot', robotsPath) } : null,
+    html,
+    security: securityFacts(headers, html, setCookies),
+    canonicalTarget: null,
+    inSitemap: null,
+  };
+  const canonical = html?.canonicals[0]?.resolved ?? resolve(page.canonicalHeader ?? '', finalUrl);
+  if (canonical && canonical.replace(/#.*$/, '') !== finalUrl) page.canonicalTarget = { url: canonical, ...(await attempt(ctx, canonical, () => chain(canonical))) };
+  if (html) page.socialImages = await socialImages(ctx, html);
+  return page;
+}
+
+// Null in a --pages-only run, so every page carries the same keys.
+const NO_HOMEPAGE_EXTRAS = { icons: null, manifest: null, scrapers: null, assets: null };
+
+async function probeHomepageExtras(ctx, page, robots) {
+  return {
+    icons: await probeIcons(ctx, page, robots),
+    manifest: await probeManifest(ctx, page.html.manifest),
+    scrapers: await probeScrapers(ctx, page.url),
+    assets: await probeAssets(ctx, page),
+  };
+}
+
+// --- Site facts and the request plan ---
+
+// Site facts (sitemap, DNS verification, security, well-known files) and the request plan --list-probes prints.
+// The plan is built from the same request builders the probes send, so the list matches what a run requests.
+
+const originsOf = (urls) => [...new Set(urls.map((u) => new URL(u).origin))];
+
+async function probeSite(ctx, origin, robots, apiPaths) {
+  return {
+    sitemap: await probeSitemaps(origin, robots.sitemaps),
+    dnsVerification: await dnsVerification(new URL(origin).hostname),
+    security: await probeSiteSecurity(ctx, origin, apiPaths),
+    wellKnown: await probeWellKnown(ctx, origin),
+  };
+}
+
+const PAGE_DEPENDENT = ['each canonical target that differs from its page', 'each preview image (og:image, twitter:image)'];
+const SITE_ORIGIN_NOTE =
+  "Site checks (every request below except robots.txt and the pages) go to the origin each robots.txt request finally resolves to. When robots.txt redirects to another origin (http to https, apex to www), the same checks go there instead, with that origin's TLS, DNS and redirect checks.";
+
+const listed = ({ url, purpose, headers }) => ({ method: 'GET', url, purpose, ...(headers ? { headers } : {}) });
+
+// Every request a run sends, printed before any is sent. Requests that depend on responses are described, not listed.
+// laterPages are URLs the audit will probe in a later --pages-only run (other hosts, migration URLs).
+function plannedRequests(urls, { pagesOnly, apiPaths, laterPages }) {
+  const origins = originsOf(urls);
+  const laterOrigins = originsOf(laterPages).filter((o) => !origins.includes(o));
+  const get = [
+    ...origins.map(robotsRequest),
+    ...urls.map((url) => ({ url, purpose: 'page' })),
+    ...laterOrigins.map((o) => ({ ...robotsRequest(o), purpose: 'robots.txt, in a later --pages-only run' })),
+    ...laterPages.map((url) => ({ url, purpose: 'page, in a later --pages-only run' })),
+  ];
+  if (pagesOnly) return { get: get.map(listed), tls: [], dns: [], dependent: PAGE_DEPENDENT };
+  for (const origin of origins) {
+    get.push(
+      ...sitemapGuessRequests(origin),
+      ...Object.values(iconRequests(origin)),
+      ...exposedFileRequests(origin),
+      ...graphqlRequests(origin),
+      ...corsRequests(origin, apiPaths),
+      notFoundRequest(origin, '<random>'),
+      ...wellKnownRequests(origin),
+      ...redirectRequests(origin),
+    );
+  }
+  for (const url of urls) get.push(...scraperRequests(url));
+  return {
+    siteOrigin: SITE_ORIGIN_NOTE,
+    get: get.map(listed),
+    tls: origins.flatMap(tlsHosts).map((host) => `${host}:443 (handshake, certificate read)`),
+    dns: origins.flatMap((o) => verificationNames(new URL(o).hostname)).map((name) => `TXT ${name}`),
+    dependent: [
+      'sitemap files named in robots.txt and in sitemap indexes (up to 50)',
+      ...PAGE_DEPENDENT.slice(0, 1),
+      'each preview image, linked icon, the manifest and its icons',
+      'CORS check on each GraphQL path that answers as GraphQL',
+      'the first internal link with its trailing slash toggled',
+      `homepage scripts (up to ${MAX_SCRIPTS}), stylesheets (up to ${MAX_STYLESHEETS}) and images (up to ${MAX_IMAGES}), in full`,
+    ],
+  };
+}
+
 // --- CLI ---
+
+const USAGE = [
+  'usage: probe.mjs [--pages-only] [--api <path>]... <url> [<url>...]',
+  '       probe.mjs --list-probes [--pages-only] [--api <path>]... [--pages <url>]... <url> [<url>...]',
+  '       probe.mjs --mail-dns <domain> [--dkim-selector <name>]...',
+].join('\n');
+const VALUE_FLAGS = { '--api': 'apiPaths', '--dkim-selector': 'selectors', '--pages': 'laterPages' };
 
 function runtime() {
   if (globalThis.Bun) return `bun ${globalThis.Bun.version}`;
@@ -1111,60 +1238,66 @@ function runtime() {
   return `node ${process.versions.node}`;
 }
 
-async function main(argv) {
-  const pagesOnly = argv.includes('--pages-only');
-  const apiPaths = [];
-  const selectors = [];
-  const targets = [];
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--api') apiPaths.push(argv[++i]);
-    else if (argv[i] === '--dkim-selector') selectors.push(argv[++i]);
-    else if (!argv[i].startsWith('--')) targets.push(argv[i]);
-  }
-  if (argv.includes('--help') || !targets.length || [...apiPaths, ...selectors].includes(undefined)) {
-    console.error(USAGE);
-    process.exit(argv.includes('--help') ? 0 : 2);
-  }
-  if (argv.includes('--mail-dns')) {
-    const domain = targets[0].replace(/^https?:\/\//i, '').replace(/[/:].*$/, '');
-    console.log(JSON.stringify(await mailDns(domain, selectors), null, 2));
-    return;
-  }
-  const urls = targets.map((t) => new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`).href);
-  auditingLocal = urls.some((u) => LOCAL_HOST.test(new URL(u).hostname));
-  if (argv.includes('--list-probes')) {
-    console.log(JSON.stringify({ probe: 'web-ready-audit', mode: 'list-probes', ...plannedRequests(urls, pagesOnly, apiPaths) }, null, 2));
-    return;
-  }
+const asUrl = (target) => new URL(/^https?:\/\//i.test(target) ? target : `https://${target}`).href;
 
-  // One site per origin robots.txt resolves to, so http://x and https://x share facts when one redirects to the other.
+function parseArgs(argv) {
+  const args = { apiPaths: [], selectors: [], laterPages: [], targets: [], flags: new Set() };
+  for (let i = 0; i < argv.length; i++) {
+    if (VALUE_FLAGS[argv[i]]) args[VALUE_FLAGS[argv[i]]].push(argv[++i]);
+    else if (argv[i].startsWith('--')) args.flags.add(argv[i]);
+    else args.targets.push(argv[i]);
+  }
+  return args;
+}
+
+// One site per origin robots.txt resolves to, so http://x and https://x share facts when one redirects to the other.
+async function probeSites(ctx, urls) {
   const sites = [];
   const robotsByOrigin = {};
-  for (const requested of new Set(urls.map((u) => new URL(u).origin))) {
-    const robots = await probeRobots(requested);
+  for (const requested of originsOf(urls)) {
+    const robots = await probeRobots(ctx, requested);
     robotsByOrigin[requested] = robots;
     const origin = new URL(robots.finalUrl ?? robots.url).origin;
-    if (sites.some((s) => s.origin === origin)) continue;
-    sites.push({
-      origin,
-      robots,
-      sitemap: pagesOnly ? null : await probeSitemaps(origin, robots.sitemaps),
-      dnsVerification: pagesOnly ? null : await dnsVerification(new URL(origin).hostname),
-      security: pagesOnly ? null : await probeSiteSecurity(origin, apiPaths),
-      wellKnown: pagesOnly ? null : await probeWellKnown(origin),
-    });
+    if (!sites.some((s) => s.origin === origin)) sites.push({ origin, robots, sitemap: null, dnsVerification: null, security: null, wellKnown: null, routing: null });
+  }
+  return { sites, robotsByOrigin };
+}
+
+async function main(argv) {
+  const { apiPaths, selectors, laterPages, targets, flags } = parseArgs(argv);
+  const pagesOnly = flags.has('--pages-only');
+  if (flags.has('--help') || !targets.length || [...apiPaths, ...selectors, ...laterPages].includes(undefined)) {
+    console.error(USAGE);
+    process.exit(flags.has('--help') ? 0 : 2);
+  }
+  if (flags.has('--mail-dns')) {
+    const domain = targets[0].replace(/^https?:\/\//i, '').replace(/[/:].*$/, '');
+    console.log(JSON.stringify({ probe: 'web-ready-audit', mode: 'mail-dns', runtime: runtime(), ...(await mailDns(domain, selectors)) }, null, 2));
+    return;
+  }
+  const urls = targets.map(asUrl);
+  if (flags.has('--list-probes')) {
+    const plan = plannedRequests(urls, { pagesOnly, apiPaths, laterPages: laterPages.map(asUrl) });
+    console.log(JSON.stringify({ probe: 'web-ready-audit', mode: 'list-probes', ...plan }, null, 2));
+    return;
   }
 
+  const ctx = targetContext(urls);
+  const { sites, robotsByOrigin } = await probeSites(ctx, urls);
   const pages = [];
-  for (const url of urls) pages.push(await probePage(url, robotsByOrigin[new URL(url).origin], !pagesOnly));
+  for (const url of urls) pages.push(await probePage(ctx, url, robotsByOrigin[new URL(url).origin]));
+  for (const page of pages) if (page.html) Object.assign(page, NO_HOMEPAGE_EXTRAS);
 
-  for (const site of sites) {
-    const homepage = pages.find((p) => p.finalUrl && new URL(p.finalUrl).origin === site.origin);
-    site.routing = pagesOnly ? null : await probeRouting(site.origin, homepage);
+  if (!pagesOnly) {
+    for (const site of sites) Object.assign(site, await probeSite(ctx, site.origin, site.robots, apiPaths));
+    for (const page of pages) if (page.html) Object.assign(page, await probeHomepageExtras(ctx, page, robotsByOrigin[new URL(page.url).origin]));
+    for (const site of sites) {
+      const homepage = pages.find((p) => p.finalUrl && new URL(p.finalUrl).origin === site.origin);
+      site.routing = await probeRouting(ctx, site.origin, homepage);
+    }
+    const sitemapUrls = new Set(sites.flatMap((s) => s.sitemap.urls));
+    for (const page of pages) page.inSitemap = sitemapUrls.has(page.url) || sitemapUrls.has(page.finalUrl);
   }
-
-  const sitemapUrls = new Set(sites.flatMap((s) => s.sitemap?.urls ?? []));
-  for (const page of pages) page.inSitemap = pagesOnly ? null : sitemapUrls.has(page.url) || sitemapUrls.has(page.finalUrl);
 
   console.log(JSON.stringify({ probe: 'web-ready-audit', runtime: runtime(), fetchedAt: new Date().toISOString(), sites, pages }, null, 2));
 }
