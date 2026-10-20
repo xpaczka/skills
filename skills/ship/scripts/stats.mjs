@@ -2,6 +2,7 @@
 // Aggregate ship metrics from finished features' records, and optionally
 // Claude Code token usage per phase from session transcripts.
 // Usage: node stats.mjs [--repo <key>] [--tokens] [--json]
+//        node stats.mjs --window <repo path> <from ISO time> <to ISO time>   (tokens only, any session)
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -170,6 +171,18 @@ function main(args) {
   const repoKey = repoIndex >= 0 ? args[repoIndex + 1] : undefined
   const shipHome = process.env.SHIP_HOME || join(homedir(), ".agents", "ship")
   const projectsDir = process.env.CLAUDE_PROJECTS_DIR || join(homedir(), ".claude", "projects")
+
+  // Token totals for work done without ship (e.g. the manual arm of an A/B), by folder and time.
+  const windowIndex = args.indexOf("--window")
+  if (windowIndex >= 0) {
+    const [path, from, to] = args.slice(windowIndex + 1, windowIndex + 4)
+    const timeline = [
+      { phase: "window", at: from },
+      { phase: "end", at: to },
+    ]
+    console.log(JSON.stringify(tokensByPhase({ repo_path: path, timeline }, projectsDir).window ?? {}, null, 2))
+    return
+  }
 
   const features = loadFeatures(shipHome, repoKey).sort((a, b) => a.completed.localeCompare(b.completed))
   const rows = features.map((f) => ({

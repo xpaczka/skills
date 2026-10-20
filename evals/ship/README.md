@@ -9,6 +9,8 @@ scripts/eval.sh ship --case status-resume --runs 1 --keep-temp
 
 Requires a working `/usr/bin/git`: the sandbox ignores your `PATH`.
 
+The manual end-to-end check on real code is in [acceptance.md](acceptance.md).
+
 ## Baseline
 
 Claude Opus 5.5, Sonnet judge, 3 runs per case, 2026-10-20: score 0.97, $4.79, 6 min.
