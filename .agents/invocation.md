@@ -21,6 +21,6 @@ Prose that names skills for a human to pick from (the README catalog, a list of 
 
 ### Exception: reading a user-invoked skill by path
 
-A subagent may follow a user-invoked external skill's instructions by reading its `SKILL.md` from disk when telling the human to run it would break the calling workflow. The step searches the harnesses' skill install folders for that `SKILL.md`, passes its path to the subagent, and gives a fallback for when nothing is found. The one use today: `ship`'s review phase ([REVIEW.md](../skills/ship/REVIEW.md), step 5) hands `thermo-nuclear-code-quality-review` to its quality reviewer this way, and owns the search order.
+A subagent may follow a user-invoked external skill's instructions by reading its `SKILL.md` from disk when telling the human to run it would break the calling workflow. The step searches the harnesses' skill install folders for that `SKILL.md`, passes its path to the subagent, and gives a fallback for when nothing is found. The one use today: `ship`'s review phase (the Thermo-nuclear skill step under Prepare in [REVIEW.md](../skills/ship/REVIEW.md)) hands `thermo-nuclear-code-quality-review` to its quality reviewer this way, and owns the search order.
 
 External skills also need an install line and a fallback: see [authoring.md](authoring.md#dependencies-on-external-skills).

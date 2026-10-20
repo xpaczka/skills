@@ -9,26 +9,31 @@ errors=0
 
 fail() { echo "✘ $*" >&2; errors=$((errors + 1)); }
 
+# Reads one YAML scalar on stdin and prints it unquoted and without a trailing comment.
+yaml_scalar() {
+  awk '{
+    q = substr($0, 1, 1)
+    if (q == "\"" || q == "\047") { v = substr($0, 2); sub(q ".*", "", v) }
+    else { v = $0; sub(/[[:space:]]*(#.*)?$/, "", v) }
+    print v
+  }'
+}
+
 # Prints the value of <key> from the YAML frontmatter of <file>, or nothing.
 frontmatter_value() {
   awk -v key="$2" '
     NR == 1 { if ($0 != "---") exit; next }
     $0 == "---" { exit }
     index($0, key ":") == 1 { sub("^" key ":[[:space:]]*", ""); print; exit }
-  ' "$1"
+  ' "$1" | yaml_scalar
 }
 
-# Prints the value of <parent>.<key> from a YAML <file> with 2-space indentation, unquoted and without a trailing comment, or nothing.
+# Prints the value of <parent>.<key> from a YAML <file> with 2-space indentation, or nothing.
 yaml_value() {
   awk -v parent="$2" -v key="$3" '
     /^[^[:space:]#]/ { inside = (index($0, parent ":") == 1); next }
-    inside && index($0, "  " key ":") == 1 {
-      v = $0; sub("^  " key ":[[:space:]]*", "", v); q = substr(v, 1, 1)
-      if (q == "\"" || q == "\047") { v = substr(v, 2); sub(q ".*", "", v) }
-      else sub(/[[:space:]]*(#.*)?$/, "", v)
-      print v; exit
-    }
-  ' "$1"
+    inside && index($0, "  " key ":") == 1 { sub("^  " key ":[[:space:]]*", ""); print; exit }
+  ' "$1" | yaml_scalar
 }
 
 shopt -s nullglob

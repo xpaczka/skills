@@ -1,6 +1,6 @@
 # Adopt mattpocock/skills conventions, keep this repo's stricter rules
 
-This repo follows the structure and authoring patterns of [mattpocock/skills](https://github.com/mattpocock/skills) as of commit `5beb35b` (2026-10-19), so its skills read and install like the wider ecosystem. Where this repo's own rules were already stricter, they stay on top. Every rule a script can check lands in `scripts/check.sh`, because unchecked rules drift.
+This repo follows the structure and authoring patterns of [mattpocock/skills](https://github.com/mattpocock/skills) as of commit `5beb35b` (2026-10-19), so its skills read and install like the wider ecosystem. Where this repo's own rules were already stricter, they stay on top. The adopted layout and prose rules each come with a check in `scripts/check.sh`, because unchecked rules drift.
 
 ## Adopted
 
