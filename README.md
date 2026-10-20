@@ -22,7 +22,7 @@ npx skills update -g          # pull the latest version
 ```sh
 scripts/link-dev.sh           # symlink every skills/* into ~/.agents/skills and agent dirs, so edits apply live
 scripts/link-dev.sh --undo    # remove those symlinks
-scripts/check.sh              # frontmatter, line budgets, `claude plugin validate`
+scripts/check.sh              # frontmatter, line budgets, whitespace rules, `claude plugin validate`
 ```
 
 Conventions for writing a skill live in [AUTHORING.md](AUTHORING.md).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate every skill: frontmatter, line budgets, plugin manifest. Exits 1 on any failure.
+# Validate every skill (frontmatter, line budgets), whitespace rules, plugin manifest. Exits 1 on any failure.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -51,6 +51,18 @@ for dir in "${dirs[@]}"; do
 
   [ "$errors" -eq "$before" ] && echo "✔ $name"
 done
+
+# Whitespace rules from .editorconfig, checked without extra tools.
+while IFS= read -r file; do
+  [ -f "$file" ] || continue
+  grep -q $'\r' "$file" && fail "$file: CRLF line endings (use LF)"
+  [ -s "$file" ] && [ -n "$(tail -c 1 "$file")" ] && fail "$file: missing final newline"
+  line=$(grep -n $'^\t' "$file" | head -1 | cut -d: -f1 || true)
+  [ -z "$line" ] || fail "$file:$line: tab indentation (use 2 spaces)"
+  case "$file" in *.md) continue ;; esac
+  line=$(grep -nE '[[:blank:]]+$' "$file" | head -1 | cut -d: -f1 || true)
+  [ -z "$line" ] || fail "$file:$line: trailing whitespace"
+done < <(git ls-files --cached --others --exclude-standard)
 
 if command -v claude > /dev/null; then
   claude plugin validate . || fail "claude plugin validate"

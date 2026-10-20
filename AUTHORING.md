@@ -39,3 +39,7 @@ When a skill relies on a skill from another repo, name it, say where it installs
 ## Scripts
 
 Bundled scripts live in `skills/<name>/scripts/`, are zero-dependency (POSIX shell or Node ≥ 22), and are invoked by path relative to the skill folder.
+
+## Formatting
+
+No formatter, no dependencies. `.editorconfig` sets the rules (UTF-8, LF, 2-space indent, final newline, no trailing whitespace except in Markdown) and `.vscode/settings.json` applies them in VS Code and Cursor without extensions, with format-on-save off so a global formatter cannot rewrite files. `scripts/check.sh` enforces the same rules. Keep Markdown tables compact (no column padding): skill files are loaded on every invocation.
