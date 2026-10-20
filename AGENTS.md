@@ -10,10 +10,10 @@ Agent Skills (`SKILL.md` format) that work in Claude Code, Cursor, Codex and any
 
 ## Catalog
 
-Every skill has an entry in `README.md`, under **User-invoked** or **Model-invoked**, with the name linked to its `SKILL.md`:
+Every skill has a row in the `README.md` catalog table, with the name linked to its `SKILL.md` and its invocation (`User` or `Model`):
 
 ```md
-- **[ship](skills/ship/SKILL.md)**: one-line description.
+| [ship](skills/ship/SKILL.md) | User | One-line description. |
 ```
 
 ## Develop

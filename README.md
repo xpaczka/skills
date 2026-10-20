@@ -4,13 +4,9 @@ Agent-agnostic [Agent Skills](https://agentskills.io) (`SKILL.md` format) for a 
 
 ## Catalog
 
-### User-invoked
-
-- **[ship](skills/ship/SKILL.md)**: Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo.
-
-### Model-invoked
-
-None yet.
+| Skill | Invocation | Description |
+| --- | --- | --- |
+| [ship](skills/ship/SKILL.md) | User | Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo. |
 
 ## Install
 
