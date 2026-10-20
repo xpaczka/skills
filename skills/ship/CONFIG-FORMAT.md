@@ -1,13 +1,12 @@
 # Config format
 
-ship's config is YAML in two files:
-
-- **Global defaults**: `$SHIP_HOME/config.yml`, only the **Decisions** keys.
-- **Per repo**: `$SHIP_HOME/repos/<key>/config.yml`, overrides the global file; setup writes every key.
-
-Setup writes a config file from this block, comments included, with each value filled.
+ship's config is YAML in two files, as the header comments of this block say.
 
 ```yaml
+# ship config.
+# Global defaults: $SHIP_HOME/config.yml, only the "Decisions" keys.
+# Per repo: $SHIP_HOME/repos/<key>/config.yml, overrides the global file; setup writes every key.
+
 # --- Decisions (asked by setup; global values are offered as defaults) ---
 pr_default: draft # draft | ready; /ship pr --draft|--ready overrides per PR
 tracker_writes_default: none # none | comment | comment+status; asked again per feature

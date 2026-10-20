@@ -39,11 +39,4 @@ npx skills update -g          # pull the latest version
 
 ## Develop
 
-```sh
-scripts/link-dev.sh           # symlink every skills/* into ~/.agents/skills (+ ~/.claude/skills), so edits apply live
-scripts/link-dev.sh --undo    # remove those symlinks
-scripts/check.sh              # frontmatter, line budgets, file layout, agents/openai.yaml, no ../ links, em-dashes, whitespace, eval scaffolds, `claude plugin validate`
-scripts/eval.sh <skill>       # run a skill's eval suite (evals/<skill>/README.md); costs money
-```
-
-The repo's rules for agents and authors live in [AGENTS.md](AGENTS.md), with topic docs in [.agents/](.agents/).
+The dev commands and the repo's rules for agents and authors live in [AGENTS.md](AGENTS.md), with topic docs in [.agents/](.agents/).

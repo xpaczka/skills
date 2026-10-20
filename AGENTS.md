@@ -19,9 +19,10 @@ Every skill has an entry in `README.md`, under **User-invoked** or **Model-invok
 ## Develop
 
 ```sh
-scripts/link-dev.sh       # symlink skills/* into ~/.agents/skills and ~/.claude/skills; edits apply live
-scripts/check.sh          # every rule below that a script can check; run after each change
-scripts/eval.sh <skill>   # run evals/<skill>; costs money, so run it when a skill's behaviour changes
+scripts/link-dev.sh         # symlink skills/* into ~/.agents/skills and ~/.claude/skills; edits apply live
+scripts/link-dev.sh --undo  # remove those symlinks
+scripts/check.sh            # every rule below that a script can check; run after each change
+scripts/eval.sh <skill>     # run evals/<skill>; costs money, so run it when a skill's behaviour changes
 ```
 
 `scripts/check.sh` passing is the bar for every change.

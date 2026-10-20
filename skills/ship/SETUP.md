@@ -31,7 +31,7 @@ Show the detected facts as one compact block, then ask in a single round (struct
 
 ## 3. Write
 
-- Write `SHIP_HOME/repos/<key>/config.yml` from the YAML block in [CONFIG-FORMAT.md](CONFIG-FORMAT.md), every key filled.
+- Write `SHIP_HOME/repos/<key>/config.yml` from the YAML block in [CONFIG-FORMAT.md](CONFIG-FORMAT.md), comments included, every key filled.
 - If the user agreed in question 4, write `SHIP_HOME/config.yml` with the decision keys only.
 - Print one line: where the config is, and how to change it (`/ship setup`).
 
