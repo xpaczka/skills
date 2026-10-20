@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: status-resume
+description: A cleared context resumes from the state file and reports status without doing any work.
+tags: [router]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:ship status"
+  max_turns: 8
+  timeout_seconds: 300
+  allowed_tools: [Skill, Bash, Read, Glob, Grep]
+graders:
+  - { type: regex, name: names-phase, pattern: implementing, flags: i }
+  - { type: regex, name: lists-remaining-chunks, pattern: "Export command[\\s\\S]*RFC 4180|RFC 4180[\\s\\S]*Export command" }
+  - { type: regex, name: says-chunk-2-awaits-commit, pattern: "Locale-aware dates[^\\n]*(handed|commit|review)", flags: i }
+  - { type: regex, name: gives-next-command, pattern: "/(skills:)?ship next" }
+  - { type: tool_used, name: locates-with-script, tool: Bash, input_match: locate.sh, min: 1 }
+  - { type: tool_used, name: no-edits, tool: Edit, min: 0, max: 0 }
+  - { type: tool_used, name: no-writes, tool: Write, min: 0, max: 0 }

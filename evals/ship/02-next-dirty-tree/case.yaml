@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: next-dirty-tree
+description: /ship next refuses to start a chunk while the previous chunk's changes are uncommitted.
+tags: [chunk, guardrail]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:ship next"
+  max_turns: 10
+  timeout_seconds: 300
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: regex, name: asks-to-commit-or-continue, pattern: "continue anyway", flags: i }
+  - { type: regex, name: names-the-changed-file, pattern: "src/csv\\.mjs" }
+  - { type: tool_used, name: no-commit, tool: Bash, input_match: "git commit", min: 0, max: 0 }
+  - { type: tool_used, name: no-stash, tool: Bash, input_match: "git stash", min: 0, max: 0 }
+  - { type: tool_used, name: no-source-edits, tool: Edit, input_match: "cwd/src/", min: 0, max: 0 }
+  - { type: tool_used, name: no-source-writes, tool: Write, input_match: "cwd/src/", min: 0, max: 0 }

@@ -6,7 +6,7 @@ Turns settled **Decisions** into approved, commitable **Chunks**. Entry: `phase:
 
 Enter the harness plan mode if it has one; otherwise stay read-only until approval. Find what the decisions touch: the files to change, existing helpers and patterns to reuse, how the repo tests similar code, and the configured `checks`. Use subagents for broad searches when the harness has them, so file dumps stay out of your context.
 
-If exploring reveals a decision the state does not settle, ask it (one question, with your recommended answer) and add the answer to **Decisions**. Never guess one.
+If exploring reveals a decision the state does not settle, never guess it silently: draft the plan assuming your recommended answer, and list each such question above the draft with that answer, so one reply settles the questions and approves the plan. Add the answers to **Decisions**.
 
 ## 2. Draft
 
@@ -26,7 +26,19 @@ If exploring reveals a decision the state does not settle, ask it (one question,
 
 ## 3. Approve
 
-Present the approach and the chunk list: through the plan-mode approval UI if the harness has one, else in chat, asking for approval. Revise until the user approves. Approval also confirms each `tdd: yes` chunk's seams, so the `tdd` skill does not ask again.
+Present the approach, then every chunk in this shape, every field filled (no summary table: the user approves the flags, not only the titles):
+
+```
+### N. <title>
+- goal: …
+- files: …
+- acceptance: `…`
+- tdd: yes — seams: … | no — <reason>
+- executor: main | subagent — <reason>
+- commit: `…`
+```
+
+Use the plan-mode approval UI if the harness has one, else ask for approval in chat. Revise until the user approves. Approval also confirms each `tdd: yes` chunk's seams, so the `tdd` skill does not ask again.
 
 ## 4. Persist
 

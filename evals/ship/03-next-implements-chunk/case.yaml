@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: next-implements-chunk
+description: /ship next implements exactly one chunk, verifies it, snapshots, hands off in the fixed format, and never commits.
+tags: [chunk]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:ship next"
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: file_exists, name: creates-serializer, path: src/csv.mjs }
+  - { type: file_exists, name: creates-tests, path: test/csv.test.mjs }
+  - { type: tool_used, name: runs-checks, tool: Bash, input_match: "node --test", min: 1 }
+  - { type: tool_used, name: takes-snapshot, tool: Bash, input_match: snapshot.sh, min: 1 }
+  - { type: tool_used, name: no-commit, tool: Bash, input_match: "git commit", min: 0, max: 0 }
+  - { type: regex, name: handoff-has-commit-message, pattern: "feat\\(ABC-123\\)" }
+  - { type: regex, name: handoff-lists-remaining, pattern: "Locale-aware dates" }
+  - type: regex
+    name: state-marks-handed-off-with-snapshot
+    target: { source: file, path: ".ship/repos/cwd/work/ABC-123-invoice-csv-export.md" }
+    pattern: "status: handed-off[\\s\\S]*handoff_snapshot: [0-9a-f]{7,}|handoff_snapshot: [0-9a-f]{7,}[\\s\\S]*status: handed-off"
+  - type: llm
+    name: handoff-quality
+    criteria: |
+      The final message is a chunk handoff for chunk 1 only. Pass if ALL hold:
+      - it says checks pass (node --test green);
+      - "what and why" matches a CSV serializer for invoice lines and nothing that chunks 2 or 3 cover (no locale-aware dates, no RFC 4180 quoting); mentioning such work as left for a later chunk is fine;
+      - it has a Deviations entry (may be "none"), a "look closely at" list with file references, a commit message, and the remaining chunks;
+      - it tells the user to commit, then run /ship next; it does not claim to have committed.

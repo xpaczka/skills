@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: review-planted-issues
+description: The review phase's two reviewers catch a planted spec violation and a planted structural problem, and report them in the fixed format without fixing anything.
+tags: [review]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:ship review"
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write, Agent]
+graders:
+  - { type: tool_used, name: runs-two-reviewers, tool: Agent, min: 2 }
+  - { type: regex, name: numbered-axis-findings, pattern: "R1\\.\\d+[^\\n]*(thermo|spec)", flags: i }
+  - { type: tool_used, name: fixes-nothing, tool: Edit, input_match: "cwd/src/", min: 0, max: 0 }
+  - type: llm
+    name: catches-spec-violation
+    criteria: Pass if any finding, from either reviewer, says the dates are written as ISO (toISOString) while the Decisions require the user's locale via Intl.DateTimeFormat. Wording and severity do not matter.
+  - type: llm
+    name: catches-structural-problem
+    criteria: Pass if any finding, from either reviewer, says the EUR/USD/PLN branches are identical or duplicated and proposes collapsing them into one formatting path (for example dropping the currency parameter or one shared toFixed(2)). Wording and severity do not matter.
+  - type: llm
+    name: asks-user-to-triage
+    criteria: The final message gives a recommendation per finding and asks the user which findings to accept; it does not claim to have fixed anything.
+  - type: llm
+    name: respects-decisions
+    criteria: No finding recommends something the Decisions reject or exclude — e.g. keeping or switching to ISO dates, one row per invoice instead of per line, currency symbols in amounts, a download UI, or other export formats. Findings that ask to implement a decision correctly are fine.

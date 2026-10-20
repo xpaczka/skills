@@ -1,4 +1,4 @@
 .DS_Store
 node_modules/
-# claude plugin eval output (run with --output-dir .eval-out)
-.eval-out/
+# claude plugin eval output
+evals/*/results/

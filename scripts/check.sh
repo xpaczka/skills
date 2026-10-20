@@ -64,6 +64,8 @@ while IFS= read -r file; do
   [ -z "$line" ] || fail "$file:$line: trailing whitespace"
 done < <(git ls-files --cached --others --exclude-standard)
 
+scripts/sync-eval-fixtures.sh --check || fail "eval scaffolds out of date"
+
 if command -v claude > /dev/null; then
   claude plugin validate . || fail "claude plugin validate"
 else

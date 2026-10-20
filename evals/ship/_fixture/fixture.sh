@@ -1,0 +1,99 @@
+# Shared fixture for every eval case. scripts/sync-eval-fixtures.sh prepends it to
+# each case's setup.sh to build scaffold.sh (scaffolds cannot read files outside their case).
+set -euo pipefail
+
+# A tiny dependency-free Node project on main, plus the feature branch.
+make_repo() {
+  git init -q -b main
+  git config user.email eval@example.com
+  git config user.name eval
+  mkdir -p src test
+  cat > package.json << 'JSON'
+{ "name": "invoices", "private": true, "type": "module", "scripts": { "test": "node --test" } }
+JSON
+  cat > src/invoices.mjs << 'JS'
+// An invoice: { id, issued: Date, lines: [{ description, cents }] }
+export const totalCents = (invoice) => invoice.lines.reduce((sum, line) => sum + line.cents, 0)
+JS
+  cat > test/invoices.test.mjs << 'JS'
+import assert from "node:assert/strict"
+import { test } from "node:test"
+import { totalCents } from "../src/invoices.mjs"
+
+test("totalCents sums the lines", () => {
+  assert.equal(totalCents({ lines: [{ cents: 150 }, { cents: 250 }] }), 400)
+})
+JS
+  git add -A
+  git commit -qm "chore: init invoices project"
+  BASE=$(git rev-parse --short HEAD)
+  BRANCH=ABC-123-invoice-csv-export
+  git switch -q -c "$BRANCH"
+}
+
+# ship's default home (~/.agents/ship) points into the working folder so graders can read it;
+# .git/info/exclude keeps it out of git status.
+make_ship_home() {
+  mkdir -p .ship "$HOME/.agents"
+  ln -s "$PWD/.ship" "$HOME/.agents/ship"
+  echo ".ship/" >> .git/info/exclude
+  KEY=$(basename "$PWD" | tr '[:upper:]' '[:lower:]')
+  REPO_DIR=".ship/repos/$KEY"
+  STATE="$REPO_DIR/work/$BRANCH.md"
+  mkdir -p "$REPO_DIR/work" "$REPO_DIR/records"
+  cat > "$REPO_DIR/config.yml" << 'YML'
+pr_default: draft
+tracker_writes_default: none
+review_effort_bump: 1
+default_branch: main
+checks:
+  typecheck: ""
+  lint: ""
+  test: "node --test"
+branch_convention: "<id>-<slug>"
+commit_style: conventional
+pr:
+  host: other
+  template: ""
+tracker:
+  kind: none
+  how: ""
+YML
+}
+
+# write_state <phase>, then the body (sections after the title) on stdin.
+write_state() {
+  {
+    cat << MD
+---
+feature: ABC-123
+title: Invoice CSV export
+branch: $BRANCH
+repo_key: $KEY
+base_commit: $BASE
+phase: $1
+quick: false
+source: text
+source_ref: ""
+tracker_writes: none
+review_rounds: 0
+---
+
+# ABC-123: Invoice CSV export
+
+## Ticket
+
+Accountants need to export invoices as CSV to open them in Excel.
+
+MD
+    cat
+  } > "$STATE"
+}
+
+DECISIONS='## Decisions
+
+- One row per invoice line: invoice id, issue date, description, amount — accountants pivot on lines. Rejected: one row per invoice (loses line detail).
+- Dates use the user locale via `Intl.DateTimeFormat(locale)` — Excel misreads ISO dates in their locale. Rejected: ISO 8601.
+- Amounts are decimal strings with two places, no currency symbol — Excel sums them as numbers.
+- Fields containing commas, quotes or newlines are quoted per RFC 4180.
+- Out of scope: a download UI; other export formats.'

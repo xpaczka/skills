@@ -38,7 +38,8 @@ npx skills update -g          # pull the latest version
 ```sh
 scripts/link-dev.sh           # symlink every skills/* into ~/.agents/skills (+ ~/.claude/skills), so edits apply live
 scripts/link-dev.sh --undo    # remove those symlinks
-scripts/check.sh              # frontmatter, line budgets, whitespace rules, `claude plugin validate`
+scripts/check.sh              # frontmatter, line budgets, whitespace rules, eval scaffolds, `claude plugin validate`
+scripts/eval.sh <skill>       # run a skill's eval suite (evals/<skill>/README.md); costs money
 ```
 
 Conventions for writing a skill live in [AUTHORING.md](AUTHORING.md).

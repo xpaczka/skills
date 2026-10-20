@@ -4,6 +4,8 @@
 set -euo pipefail
 
 home=${SHIP_HOME:-$HOME/.agents/ship}
+# Print physical paths: agents' permission checks treat a symlinked path by its spelling.
+[ -d "$home" ] && home=$(cd "$home" && pwd -P)
 root=$(git rev-parse --show-toplevel)
 remote=$(git remote get-url origin 2> /dev/null || true)
 if [ -n "$remote" ]; then
