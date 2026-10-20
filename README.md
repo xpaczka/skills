@@ -6,14 +6,14 @@ Agent-agnostic [Agent Skills](https://agentskills.io) (`SKILL.md` format) for a 
 
 | Skill | Invocation | What it does |
 |---|---|---|
-| _none yet_ | | |
+| [ship](skills/ship/SKILL.md) | user: `/ship` | Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo. |
 
 ## Install
 
 With the [`skills` CLI](https://github.com/vercel-labs/skills), globally, for Claude Code and Cursor:
 
 ```sh
-npx skills add michalpaczynski/skills -s <name> -g -a claude-code -a cursor
+npx skills add xpaczka/skills -s <name> -g -a claude-code -a cursor
 npx skills update -g          # pull the latest version
 ```
 

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ship"
+  short_description: "Grill, plan, ship in user-committed chunks, then review"
+policy:
+  allow_implicit_invocation: false

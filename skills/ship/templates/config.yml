@@ -1,0 +1,23 @@
+# ship config.
+# Global defaults: $SHIP_HOME/config.yml — only the "Decisions" keys.
+# Per repo:        $SHIP_HOME/repos/<key>/config.yml — overrides global; setup writes all keys.
+
+# --- Decisions (asked by setup; global values are offered as defaults) ---
+pr_default: draft # draft | ready; /ship pr --draft|--ready overrides per PR
+tracker_writes_default: none # none | comment | comment+status; asked again per feature
+review_effort_bump: 1 # reviewer effort = configured effort + this many levels (capped at max)
+
+# --- Facts (detected by setup; re-run /ship setup to refresh) ---
+default_branch: main
+checks: # exact commands; empty means not available
+  typecheck: ""
+  lint: ""
+  test: ""
+branch_convention: "<id>-<slug>" # pattern, e.g. "feat/<id>-<slug>"
+commit_style: conventional # conventional | free-text description of the repo's style
+pr:
+  host: github # github | bitbucket | gitlab | other
+  template: "" # repo-relative path of the PR template, or empty
+tracker:
+  kind: none # linear | jira | github | none
+  how: "" # repo doc with instructions (e.g. docs/agents/issue-tracker.md) or connector name
