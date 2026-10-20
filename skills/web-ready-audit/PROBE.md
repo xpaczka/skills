@@ -9,7 +9,7 @@ node scripts/probe.mjs <url> [<url>...]            # or: bun scripts/probe.mjs, 
 node scripts/probe.mjs --pages-only <url> [<url>...]
 ```
 
-- The first run (homepage) gathers site facts and page facts. `--pages-only` still reads robots.txt, so every page gets its robots verdict, but skips sitemaps and DNS, and leaves `inSitemap` null: pages taken from the sitemap are in it by definition.
+- The first run (homepage) gathers site facts and page facts. `--pages-only` still reads robots.txt, so every page gets its robots verdict, but skips sitemaps, DNS and the homepage facts, and leaves `inSitemap` null: pages taken from the sitemap are in it by definition.
 - A bare host gets `https://`. Requests go one at a time, follow at most 10 redirects, and time out after 15 s each.
 - A failed request becomes an `error` field on that fact, not a crash. Exit code 2 means no URL was given.
 
@@ -40,7 +40,27 @@ One entry per origin that robots.txt resolves to.
 - `html` (HTML responses only), read from the raw response with comments, scripts and styles removed:
   - `lang` of `<html>`; `titles[]`; `descriptions[]` (`meta name=description`); `canonicals[]` (`href` and `resolved` against `<base>` or the page).
   - `metaRobots[]` (`robots`, `googlebot`, `bingbot` metas); `viewport[]`; `hreflang[]` (alternate links); `verification` (`google-site-verification`, `msvalidate.01`, `yandex-verification` metas).
+  - `openGraph` and `twitter`: every `og:*` and `twitter:*` meta (by `property` or `name`), as a list of contents per key, since `og:image` may repeat.
+  - `icons[]` (`icon`, `shortcut icon`, `apple-touch-icon*` and `mask-icon` links: `rel`, `href`, `resolved`, `sizes`, `type`); `manifest` (the resolved `rel=manifest` URL); `base` (the URL relative links resolve against).
+  - `jsonLd[]`, one per `application/ld+json` script in head or body: `valid`, `types` (every `@type`, nested ones included), `bytes`, and `data` (the parsed value, when at most 20 KB; else `truncated`). An invalid block has `error` and an `excerpt` instead.
   - `bodyTextLength` (visible text characters); `emptyMount` (the id of an empty `root`/`app`/`__next` mount div, a sign of a client-rendered shell); `internalLinks` (`count` and the first 100 same-origin `<a href>`s).
+
+- `socialImages[]`: each distinct URL in `og:image`, `og:image:url`, `og:image:secure_url`, `twitter:image` and `twitter:image:src`, at most 4: `tag`, `href`, `resolved`, plus the image facts.
+
+### Homepage facts (`pages[]`, null with `--pages-only`)
+
+- `icons`: `linked[]` (each of `html.icons`, at most 10), `faviconIco` (`/favicon.ico`), `appleTouchFallback` (`/apple-touch-icon.png`, only when no apple-touch-icon is linked; iOS requests it anyway). Each carries the image facts, and a same-origin one also `robotsTxt` for Googlebot-Image, which falls back to the Googlebot group, then `*`.
+- `manifest`: GET of `html.manifest`: `status`, `finalUrl`, `redirects`, `contentType`, `parseError`; the fields `id`, `name`, `short_name`, `start_url`, `scope`, `display`, `theme_color`, `background_color`, `prefer_related_applications`; `iconCount` and `icons[]` (the first 10: `src`, `sizes`, `type`, `purpose`, plus the image facts).
+- `scrapers.facebookexternalhit`, `scrapers.Twitterbot`: the page re-fetched with that scraper's user agent: `status`, `finalUrl`, `blocked`, `ogTitle`, `ogImage`, `twitterCard`.
+
+### Image facts
+
+Shared by preview images, icons and manifest icons. Each URL is fetched once per run, with a 64 KB range request, then a full GET when the size sits further into the file.
+
+- `finalUrl`, `status` (206 when the range was honored), `redirects`, `contentType`, `bytes` (the whole file's size).
+- `format` from the file's first bytes, not its content type: `png`, `jpeg`, `gif`, `webp`, `avif`, `heif`, `ico` (plus `icoSizes`), `bmp` or `svg`; null for anything else, such as an HTML error page.
+- `width`, `height` in pixels (an SVG's `width`/`height`, else its `viewBox`); null when unreadable.
+- A localhost or private-network URL is `skipped`, not fetched.
 
 ## Without a JS runtime
 
@@ -48,6 +68,7 @@ Gather the fact list with the best detected tool, under the same names:
 
 - **curl**: `curl -sS -A '<browser UA>' --max-redirs 0 -D - -o <file> <url>` per hop, following `Location` by hand to record `redirects`. Parse robots.txt, sitemaps and the head from the saved bodies with the same rules as above. DNS TXT: `dig +short TXT <host>` or `nslookup -type=TXT <host>`.
 - **wget**: `wget -S --max-redirect=0 -O <file> <url>` per hop, the same way.
+- **Image facts**: save each image (`curl -sS -r 0-65535 -D - -o <file> <url>`, a full GET when the size is missing) and read `format`, `width` and `height` with `file <file>` (PNG, JPEG, GIF, WebP), or `sips -g pixelWidth -g pixelHeight <file>` on macOS. `bytes` comes from the `Content-Range` total.
 - **Harness web fetch only**: it usually follows redirects and may render or summarize the page. Use it for robots.txt and sitemap bodies; mark `redirects`, `headers`, `xRobotsTag` and raw-HTML facts unverified unless it returns the raw response.
 
 Any fact no available tool can get is "unverified" in the report header, and its checks are "not verifiable".

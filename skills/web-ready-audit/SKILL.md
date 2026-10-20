@@ -27,8 +27,8 @@ You audit one website or web app for launch readiness: the things that are easy 
 
 1. **Arguments.** `[url]` is an argument starting with `http://` or `https://`, or a bare host such as `example.com`. `[path]` is the project folder, default the current directory.
 2. **Target.** A URL argument is the live site to inspect. Without one, ask the user for the production URL (the local-build layer is not written yet).
-3. **Source.** In `[path]`, find what produces the HTML head (layouts, `index.html`, head or metadata APIs), robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title` and `lang=`. Keep each hit's `file:line` for the findings.
-4. **Requests.** Tell the user what the run will GET: robots.txt, the sitemaps, each page, each canonical target that differs from its page, and DNS TXT records for the host.
+3. **Source.** In `[path]`, find what produces the HTML head (layouts, `index.html`, head or metadata APIs), robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title`, `lang=`, `og:`, `twitter:`, `icon`, `manifest` and `ld+json`. Keep each hit's `file:line` for the findings.
+4. **Requests.** Tell the user what the run will GET: robots.txt, the sitemaps, each page, each canonical target that differs from its page, DNS TXT records for the host, each preview image, the icons and manifest, and the homepage again as `facebookexternalhit` and `Twitterbot`.
 5. **Homepage.** Run the probe on the target ([PROBE.md](PROBE.md)).
 6. **Pages.** Take candidates from `sites[].sitemap.urls`, else the homepage's `html.internalLinks`, plus the routes in the source. Under 15 candidates, check them all; otherwise check one page per route template (same path shape, one varying segment), at most 25. Run the probe on them with `--pages-only`.
 7. **Judge.** Apply every rule in the checks file of each category below. Done when every rule has a verdict: a finding, a pass, or "not verifiable" with the reason.
@@ -39,6 +39,9 @@ You audit one website or web app for launch readiness: the things that are easy 
 | Category | Rules |
 |---|---|
 | Crawlability and SEO | [CHECKS-CRAWL.md](CHECKS-CRAWL.md) |
+| Social previews | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
+| Icons and manifest | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
+| Structured data | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
 
 ## Environment capabilities
 
