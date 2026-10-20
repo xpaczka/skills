@@ -1,0 +1,9 @@
+{
+  "name": "skills",
+  "version": "0.1.0",
+  "description": "Agent-agnostic skills for a controlled, chunked development workflow.",
+  "author": {
+    "name": "Michał Paczyński"
+  },
+  "license": "MIT"
+}
