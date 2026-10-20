@@ -34,3 +34,4 @@ Write without em-dashes in every tracked file; only recorded model output in `ev
 
 - Writing or editing a skill: read [.agents/authoring.md](.agents/authoring.md) (disclosure, file naming, line budgets, harness capabilities, external dependencies, scripts, evals).
 - Choosing a skill's invocation, or having one skill reach another: read [.agents/invocation.md](.agents/invocation.md).
+- Why the repo is shaped this way: ADRs in `.agents/adr/NNNN-<slug>.md`, starting with [0001](.agents/adr/0001-adopt-mattpocock-skills-conventions.md). Add one for a decision that is hard to reverse, surprising without context, and the result of a real trade-off.
