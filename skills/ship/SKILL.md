@@ -19,12 +19,12 @@ You drive one feature through fixed phases while the user keeps control of every
 
 ## Locate state
 
-1. `SHIP_HOME` = `$SHIP_HOME` if set, else `~/.agents/ship`.
-2. Repo key: `git remote get-url origin` → `<owner>-<repo>`, lowercase, without `.git`. No remote → the repo root's folder name.
-3. Repo dir: `SHIP_HOME/repos/<key>/`. Config = `SHIP_HOME/config.yml` overlaid by `repos/<key>/config.yml`; schema in [templates/config.yml](templates/config.yml).
-4. State file: `repos/<key>/work/<branch, "/" replaced by "-">.md`; schema in [templates/state.md](templates/state.md).
+Run `scripts/locate.sh` (in this skill's folder) from inside the repo, once per invocation. It prints `ship_home`, `repo_root`, `repo_key`, `branch`, the global config, repo config and state file paths with `exists`/`missing`, the current `phase`, and the records folder. Use those values; do not re-derive them.
 
-If the repo config is missing, run [phases/setup.md](phases/setup.md) first, then continue with the requested subcommand (`history` and `stats` do not need it).
+- `SHIP_HOME` = `$SHIP_HOME`, else `~/.agents/ship`. Repo key = origin's `<owner>-<repo>` lowercased, else the repo folder name. State file = `repos/<key>/work/<branch with "/" → "-">.md`.
+- Config = global config overlaid by repo config; schema in [templates/config.yml](templates/config.yml). State schema: [templates/state.md](templates/state.md).
+
+If the repo config is missing, run [phases/setup.md](phases/setup.md) first, then continue with the requested subcommand (`status`, `clean`, `history` and `stats` do not need it).
 
 ## Subcommands
 
@@ -54,7 +54,7 @@ Read only the file the row names, then follow it.
 
 ### status
 
-Print, without doing any other work: feature ID and title, branch, phase, each chunk with its status, open review findings, and the exact next command.
+Print, without doing any other work: feature ID and title, branch, phase, each chunk with its status, open review findings, and the exact next command. No state file for this branch → "No feature in progress on `<branch>`." plus the start command.
 
 ### clean
 

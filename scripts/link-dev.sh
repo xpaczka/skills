@@ -6,7 +6,8 @@ set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 canonical="$HOME/.agents/skills"
-agent_dirs=("$HOME/.claude/skills" "$HOME/.cursor/skills")
+# Agents that read ~/.agents/skills directly (e.g. Cursor) need no link of their own.
+agent_dirs=("$HOME/.claude/skills")
 
 link_skill() {
   local name=$1 dest="$canonical/$1" agent_dir link

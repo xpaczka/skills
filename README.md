@@ -17,10 +17,26 @@ npx skills add xpaczka/skills -s <name> -g -a claude-code -a cursor
 npx skills update -g          # pull the latest version
 ```
 
+### Claude Code permissions for `ship`
+
+`ship` keeps its state outside the repo, in `~/.agents/ship/`. To stop Claude Code from asking on every call, allow exactly that folder and ship's two scripts in `~/.claude/settings.json` (use your absolute home path where shown):
+
+```json
+"permissions": {
+  "additionalDirectories": ["/Users/<you>/.agents/ship"],
+  "allow": [
+    "Read(~/.agents/ship/**)",
+    "Edit(~/.agents/ship/**)",
+    "Bash(/Users/<you>/.claude/skills/ship/scripts/locate.sh)",
+    "Bash(/Users/<you>/.claude/skills/ship/scripts/snapshot.sh)"
+  ]
+}
+```
+
 ## Develop
 
 ```sh
-scripts/link-dev.sh           # symlink every skills/* into ~/.agents/skills and agent dirs, so edits apply live
+scripts/link-dev.sh           # symlink every skills/* into ~/.agents/skills (+ ~/.claude/skills), so edits apply live
 scripts/link-dev.sh --undo    # remove those symlinks
 scripts/check.sh              # frontmatter, line budgets, whitespace rules, `claude plugin validate`
 ```
