@@ -78,7 +78,7 @@ On every phase change, set `phase` in the state frontmatter and append `- <phase
 
 ## Dependencies
 
-Phases call these skills by name. Each phase carries a short fallback for when one is missing.
+Phases reach `grilling`, `tdd` and `pr` with `Call the Skill tool with "<name>"`, one skill per call. `thermo-nuclear-code-quality-review` is user-invoked, so the review phase passes its `SKILL.md` path to a subagent instead. Each phase carries a short fallback for when one is missing.
 
 - `grilling`, `tdd`, `pr`: `npx skills add mattpocock/skills -s grilling -s tdd -s pr -g`
 - `thermo-nuclear-code-quality-review`: `npx skills add https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/thermo-nuclear-code-quality-review -g`

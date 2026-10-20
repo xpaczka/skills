@@ -29,7 +29,7 @@ Then pick the lowest-numbered `pending` chunk. If none is left:
 Set the chunk `status: in-progress`. Read the chunk, the **Decisions** and the **Plan**; open only the files the chunk names and what they lead you to. Stay inside the chunk's goal: work that a later chunk or another decision covers stays out even when it seems to belong here; name it under Deviations as "left for chunk K" instead.
 
 - `executor: subagent` (when the harness has subagents): brief the subagent with the chunk entry, the decisions it touches, and its acceptance commands. Read its diff yourself before handing off; you own the handoff.
-- `tdd: yes`: call the `tdd` skill; the seams were approved with the plan. Fallback: one failing test per behaviour through a listed seam, the minimum code to pass it, repeat; refactor only while green.
+- `tdd: yes`: Call the Skill tool with "tdd"; the seams were approved with the plan. Fallback: one failing test per behaviour through a listed seam, the minimum code to pass it, repeat; refactor only while green.
 
 ## 3. Deviations
 
