@@ -1,6 +1,6 @@
 # Setup phase
 
-Runs once per repo (automatically when the repo config is missing) or on `/ship setup`. You find the **facts** yourself; you ask the user only the **decisions**. Keys and their meaning: [templates/config.yml](../templates/config.yml).
+Runs once per repo (automatically when the repo config is missing) or on `/ship setup`. You find the **facts** yourself; you ask the user only the **decisions**. Keys and their meaning: [CONFIG-FORMAT.md](CONFIG-FORMAT.md).
 
 ## 1. Detect facts
 
@@ -31,7 +31,7 @@ Show the detected facts as one compact block, then ask in a single round (struct
 
 ## 3. Write
 
-- Write `SHIP_HOME/repos/<key>/config.yml` with every key from the template, filled.
+- Write `SHIP_HOME/repos/<key>/config.yml` from the YAML block in [CONFIG-FORMAT.md](CONFIG-FORMAT.md), every key filled.
 - If the user agreed in question 4, write `SHIP_HOME/config.yml` with the decision keys only.
 - Print one line: where the config is, and how to change it (`/ship setup`).
 

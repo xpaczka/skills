@@ -18,7 +18,7 @@ If exploring reveals a decision the state does not settle, never guess it silent
 - leaves every configured check **green** on its own;
 - ships its **tests in the same chunk**;
 - stays reviewable in 10–15 minutes: roughly ≤ 400 changed lines, split it otherwise;
-- fills every field of a chunk in [templates/state.md](../templates/state.md):
+- fills every field of a chunk in [STATE-FORMAT.md](STATE-FORMAT.md):
   - `acceptance`: the exact commands that prove the chunk works;
   - `tdd`: `yes` for logic with rules, branches, parsing or state, listing the **seams** (the public functions or endpoints the tests drive); `no` with a reason for wiring, UI and config;
   - `executor`: `subagent` only for mechanical high-volume work whose acceptance commands fully define done (codemods, bulk renames, generated fixtures), or for exploration-heavy work whose raw output the user does not need; otherwise `main`. Always give the reason;

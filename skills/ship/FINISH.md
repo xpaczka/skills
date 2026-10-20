@@ -8,7 +8,7 @@ Every chunk is `committed` and `git status --porcelain` is empty. If not, say wh
 
 ## 2. Write the record
 
-Path: `SHIP_HOME/repos/<key>/records/<feature>-<title as kebab-case>.md`, from [templates/record.md](../templates/record.md), at most 60 lines. Its reader is a future agent planning related work, so keep what constrains that work and drop the play-by-play:
+Path: `SHIP_HOME/repos/<key>/records/<feature>-<title as kebab-case>.md`, from [RECORD-FORMAT.md](RECORD-FORMAT.md), at most 60 lines. Its reader is a future agent planning related work, so keep what constrains that work and drop the play-by-play:
 
 - frontmatter: `final_commit` = HEAD's short SHA, `related` = the IDs under **Related work** and the ticket's links, `completed` = today;
 - **Goal**: 1–3 lines;

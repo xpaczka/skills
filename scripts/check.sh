@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate every skill (frontmatter, line budgets), whitespace rules, plugin manifest. Exits 1 on any failure.
+# Validate every skill (frontmatter, line budgets, file layout, openai.yaml), whitespace rules, plugin manifest. Exits 1 on any failure.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -15,6 +15,16 @@ frontmatter_value() {
     NR == 1 { if ($0 != "---") exit; next }
     $0 == "---" { exit }
     index($0, key ":") == 1 { sub("^" key ":[[:space:]]*", ""); print; exit }
+  ' "$1"
+}
+
+# Prints the value of <parent>.<key> from a YAML <file> with 2-space indentation, quotes stripped, or nothing.
+yaml_value() {
+  awk -v parent="$2" -v key="$3" '
+    /^[^[:space:]#]/ { inside = (index($0, parent ":") == 1); next }
+    inside && index($0, "  " key ":") == 1 {
+      sub("^  " key ":[[:space:]]*", ""); gsub(/^"|"$/, ""); print; exit
+    }
   ' "$1"
 }
 
@@ -39,14 +49,31 @@ for dir in "${dirs[@]}"; do
   lines=$(($(wc -l < "$skill")))
   [ "$lines" -le "$SKILL_MAX" ] || fail "$skill: $lines lines (budget $SKILL_MAX)"
 
+  # Reference files sit flat beside SKILL.md with UPPERCASE names.
   while IFS= read -r file; do
     lines=$(($(wc -l < "$file")))
     [ "$lines" -le "$FILE_MAX" ] || fail "$file: $lines lines (budget $FILE_MAX)"
+    rel=${file#"$dir"/}
+    if [[ "$rel" == */* ]]; then
+      fail "$file: .md files belong at the skill root, not in a subfolder"
+    elif ! [[ "$rel" =~ ^[A-Z0-9-]+\.md$ ]]; then
+      fail "$file: reference file names are UPPERCASE (e.g. PLAN.md, STATE-FORMAT.md)"
+    fi
   done < <(find "$dir" -name '*.md' ! -path "$skill")
 
-  if [ "$(frontmatter_value "$skill" disable-model-invocation)" = "true" ] \
-    && ! grep -qs 'allow_implicit_invocation: false' "$dir/agents/openai.yaml"; then
-    fail "$dir: user-invoked skill needs agents/openai.yaml with allow_implicit_invocation: false"
+  line=$(grep -rnF '](../' "$dir" | head -1 || true)
+  [ -z "$line" ] || fail "${line%%:*}: links must stay inside the skill's folder (found '](../')"
+
+  openai="$dir/agents/openai.yaml"
+  if [ ! -f "$openai" ]; then
+    fail "$dir: missing agents/openai.yaml"
+  else
+    [ -n "$(yaml_value "$openai" interface display_name)" ] || fail "$openai: interface.display_name is empty"
+    [ -n "$(yaml_value "$openai" interface short_description)" ] || fail "$openai: interface.short_description is empty"
+    if [ "$(frontmatter_value "$skill" disable-model-invocation)" = "true" ] \
+      && [ "$(yaml_value "$openai" policy allow_implicit_invocation)" != "false" ]; then
+      fail "$openai: user-invoked skill needs policy.allow_implicit_invocation: false"
+    fi
   fi
 
   [ "$errors" -eq "$before" ] && echo "✔ $name"

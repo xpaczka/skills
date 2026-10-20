@@ -20,7 +20,7 @@ Collect issue IDs the ticket links or mentions; step 4 uses them.
 
 ## 3. Create the state file
 
-Create it from [templates/state.md](../templates/state.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**, the first **Timeline** entry. Replace every example value from the template; keep the section headings.
+Create it from [STATE-FORMAT.md](STATE-FORMAT.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**, the first **Timeline** entry. Replace every example value from the template; keep the section headings.
 
 ## 4. Pull in related work
 

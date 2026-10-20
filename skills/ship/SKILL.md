@@ -22,9 +22,9 @@ You drive one feature through fixed phases while the user keeps control of every
 Run `scripts/locate.sh` (in this skill's folder) from inside the repo, once per invocation. It prints `ship_home`, `repo_root`, `repo_key`, `branch`, the global config, repo config and state file paths with `exists`/`missing`, the current `phase`, and the records folder. Use those values; do not re-derive them.
 
 - `SHIP_HOME` = `$SHIP_HOME`, else `~/.agents/ship`. Repo key = origin's `<owner>-<repo>` lowercased, else the repo folder name. State file = `repos/<key>/work/<branch with "/" → "-">.md`.
-- Config = global config overlaid by repo config; schema in [templates/config.yml](templates/config.yml). State schema: [templates/state.md](templates/state.md).
+- Config = global config overlaid by repo config; schema in [CONFIG-FORMAT.md](CONFIG-FORMAT.md). State schema: [STATE-FORMAT.md](STATE-FORMAT.md).
 
-If the repo config is missing, run [phases/setup.md](phases/setup.md) first, then continue with the requested subcommand (`status`, `clean`, `history` and `stats` do not need it).
+If the repo config is missing, run [SETUP.md](SETUP.md) first, then continue with the requested subcommand (`status`, `clean`, `history` and `stats` do not need it).
 
 ## Subcommands
 
@@ -32,24 +32,24 @@ Read only the file the row names, then follow it.
 
 | Invocation | Read |
 |---|---|
-| `/ship <task text \| ISSUE-ID \| path.md> [--quick]` | [phases/grill.md](phases/grill.md). If an unfinished state file exists for this branch, ask: resume it, or start the new feature on a new branch. |
+| `/ship <task text \| ISSUE-ID \| path.md> [--quick]` | [GRILL.md](GRILL.md). If an unfinished state file exists for this branch, ask: resume it, or start the new feature on a new branch. |
 | `/ship` (no arguments) | Resume: the file for the state's `phase` (table below). No state file → say so and show the start command. |
-| `/ship next` | [phases/chunk.md](phases/chunk.md) |
+| `/ship next` | [CHUNK.md](CHUNK.md) |
 | `/ship status` | Inline, below |
-| `/ship review` | [phases/review.md](phases/review.md) (also starts an extra review round on request) |
-| `/ship pr [--draft \| --ready]` | [phases/pr.md](phases/pr.md) |
-| `/ship history [query]` | [phases/history.md](phases/history.md) |
-| `/ship stats` | [phases/stats.md](phases/stats.md) |
-| `/ship setup` | [phases/setup.md](phases/setup.md) (re-detects facts, re-asks decisions) |
+| `/ship review` | [REVIEW.md](REVIEW.md) (also starts an extra review round on request) |
+| `/ship pr [--draft \| --ready]` | [PR.md](PR.md) |
+| `/ship history [query]` | [HISTORY.md](HISTORY.md) |
+| `/ship stats` | [STATS.md](STATS.md) |
+| `/ship setup` | [SETUP.md](SETUP.md) (re-detects facts, re-asks decisions) |
 | `/ship clean [ID]` | Inline, below |
 
 | State `phase` | Read |
 |---|---|
-| `grilling` | [phases/grill.md](phases/grill.md) |
-| `planning` | [phases/plan.md](phases/plan.md) |
-| `implementing` | [phases/chunk.md](phases/chunk.md) |
-| `reviewing` | [phases/review.md](phases/review.md) |
-| `finishing` | [phases/finish.md](phases/finish.md) |
+| `grilling` | [GRILL.md](GRILL.md) |
+| `planning` | [PLAN.md](PLAN.md) |
+| `implementing` | [CHUNK.md](CHUNK.md) |
+| `reviewing` | [REVIEW.md](REVIEW.md) |
+| `finishing` | [FINISH.md](FINISH.md) |
 | `done` | Report done; offer `/ship pr` and `/ship clean`. |
 
 ### status
