@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate every skill (frontmatter, line budgets, file layout, openai.yaml), whitespace and em-dash rules, plugin manifest. Exits 1 on any failure.
+# Validate every skill (frontmatter, line budgets, file layout, openai.yaml), whitespace rules, em-dash and cross-skill link bans, plugin manifest. Exits 1 on any failure.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -18,12 +18,15 @@ frontmatter_value() {
   ' "$1"
 }
 
-# Prints the value of <parent>.<key> from a YAML <file> with 2-space indentation, quotes stripped, or nothing.
+# Prints the value of <parent>.<key> from a YAML <file> with 2-space indentation, unquoted and without a trailing comment, or nothing.
 yaml_value() {
   awk -v parent="$2" -v key="$3" '
     /^[^[:space:]#]/ { inside = (index($0, parent ":") == 1); next }
     inside && index($0, "  " key ":") == 1 {
-      sub("^  " key ":[[:space:]]*", ""); gsub(/^"|"$/, ""); print; exit
+      v = $0; sub("^  " key ":[[:space:]]*", "", v); q = substr(v, 1, 1)
+      if (q == "\"" || q == "\047") { v = substr(v, 2); sub(q ".*", "", v) }
+      else sub(/[[:space:]]*(#.*)?$/, "", v)
+      print v; exit
     }
   ' "$1"
 }
@@ -49,7 +52,10 @@ for dir in "${dirs[@]}"; do
   lines=$(($(wc -l < "$skill")))
   [ "$lines" -le "$SKILL_MAX" ] || fail "$skill: $lines lines (budget $SKILL_MAX)"
 
-  # Reference files sit flat beside SKILL.md with UPPERCASE names.
+  # Reference files sit flat beside SKILL.md with UPPERCASE names; the only subfolders are scripts/ and agents/.
+  while IFS= read -r sub; do
+    case "${sub##*/}" in scripts | agents) ;; *) fail "$sub: only scripts/ and agents/ may sit in a skill folder" ;; esac
+  done < <(find "$dir" -mindepth 1 -maxdepth 1 -type d)
   while IFS= read -r file; do
     lines=$(($(wc -l < "$file")))
     [ "$lines" -le "$FILE_MAX" ] || fail "$file: $lines lines (budget $FILE_MAX)"
@@ -61,19 +67,16 @@ for dir in "${dirs[@]}"; do
     fi
   done < <(find "$dir" -name '*.md' ! -path "$skill")
 
-  line=$(grep -rnF '](../' "$dir" | head -1 || true)
-  [ -z "$line" ] || fail "${line%%:*}: links must stay inside the skill's folder (found '](../')"
-
   openai="$dir/agents/openai.yaml"
   if [ ! -f "$openai" ]; then
     fail "$dir: missing agents/openai.yaml"
   else
     [ -n "$(yaml_value "$openai" interface display_name)" ] || fail "$openai: interface.display_name is empty"
     [ -n "$(yaml_value "$openai" interface short_description)" ] || fail "$openai: interface.short_description is empty"
-    if [ "$(frontmatter_value "$skill" disable-model-invocation)" = "true" ] \
-      && [ "$(yaml_value "$openai" policy allow_implicit_invocation)" != "false" ]; then
-      fail "$openai: user-invoked skill needs policy.allow_implicit_invocation: false"
-    fi
+    [ "$(frontmatter_value "$skill" disable-model-invocation)" = "true" ] && claude_user=yes || claude_user=no
+    [ "$(yaml_value "$openai" policy allow_implicit_invocation)" = "false" ] && codex_user=yes || codex_user=no
+    [ "$claude_user" = "$codex_user" ] \
+      || fail "$openai: user-invoked in Claude Code: $claude_user, in Codex: $codex_user (set disable-model-invocation: true and policy.allow_implicit_invocation: false together)"
   fi
 
   [ "$errors" -eq "$before" ] && echo "✔ $name"
@@ -86,15 +89,18 @@ while IFS= read -r file; do
   [ -s "$file" ] && [ -n "$(tail -c 1 "$file")" ] && fail "$file: missing final newline"
   line=$(grep -n $'^\t' "$file" | head -1 | cut -d: -f1 || true)
   [ -z "$line" ] || fail "$file:$line: tab indentation (use 2 spaces)"
-  # No em-dashes outside recorded model output; matched by bytes so this script holds none.
-  case "$file" in evals/*/results/*) ;; *)
-    line=$(grep -n $'\xe2\x80\x94' "$file" | head -1 | cut -d: -f1 || true)
-    [ -z "$line" ] || fail "$file:$line: em-dash (rewrite with a comma, colon, period or parentheses)"
-  esac
   case "$file" in *.md) continue ;; esac
   line=$(grep -nE '[[:blank:]]+$' "$file" | head -1 | cut -d: -f1 || true)
   [ -z "$line" ] || fail "$file:$line: trailing whitespace"
 done < <(git ls-files --cached --others --exclude-standard)
+
+# Content bans over tracked and untracked files. The em-dash is matched by bytes so this script holds none.
+while IFS= read -r hit; do
+  fail "$hit: em-dash (rewrite with a comma, colon, period or parentheses)"
+done < <(git grep -nI --untracked $'\xe2\x80\x94' -- ':!evals/*/results/' | cut -d: -f1,2 || true)
+while IFS= read -r hit; do
+  fail "$hit: links must stay inside the skill's folder (found '](../')"
+done < <(git grep -nI --untracked -F '](../' -- skills/ | cut -d: -f1,2 || true)
 
 scripts/sync-eval-fixtures.sh --check || fail "eval scaffolds out of date"
 
