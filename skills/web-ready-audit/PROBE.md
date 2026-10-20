@@ -7,8 +7,11 @@
 ```sh
 node scripts/probe.mjs <url> [<url>...]            # or: bun scripts/probe.mjs, deno run --allow-net scripts/probe.mjs
 node scripts/probe.mjs --pages-only <url> [<url>...]
+node scripts/probe.mjs --list-probes [--pages-only] [--api <path>]... <url>   # prints the planned requests, sends none
 ```
 
+- `--list-probes` prints `get[]` (each GET with its purpose and any special header), `tls[]`, `dns[]`, and `dependent[]` (requests whose URLs come from responses). Show it to the user before the first real run.
+- `--api <path>` (repeatable) adds same-origin API routes to the CORS check.
 - The first run (homepage) gathers site facts and page facts. `--pages-only` still reads robots.txt, so every page gets its robots verdict, but skips sitemaps, DNS and the homepage facts, and leaves `inSitemap` null: pages taken from the sitemap are in it by definition.
 - A bare host gets `https://`; pass a local server as `http://localhost:<port>`. Localhost and private-network URLs (canonical targets, images) are fetched only when the target itself is local; otherwise they are `skipped`. Requests go one at a time, follow at most 10 redirects, and time out after 15 s each.
 - A failed request becomes an `error` field on that fact, not a crash. Exit code 2 means no URL was given.
@@ -26,11 +29,17 @@ One entry per origin that robots.txt resolves to.
 - `sitemap`: the robots.txt `Sitemap:` URLs, else the first of `/sitemap.xml`, `/sitemap_index.xml`, `/sitemap-index.xml` that answers 200. Sitemap indexes are followed, up to 50 files; gzip is decoded.
   - `declaredInRobots`; `files[]` with `status`, `contentType`, `kind` (`urlset`, `sitemapindex` or `not-xml`), `locs`, `lastmods`.
   - `urlCount` (all `<loc>`s in url sets), `urls` (the first 500), `urlsTruncated`, `hosts` (`<loc>` count per scheme and host), `lastmodCount`, `distinctLastmods`.
+- `security` (null with `--pages-only`):
+  - `tls`: for an https, non-local origin, the host and its www or apex twin: `host`, `resolves`, `authorized`, `authorizationError`, `coversHost` (a SAN matches the host), `protocol`, `issuer`, `altNames`, `validTo`, `daysLeft`. Bun's `fetch` accepts a certificate for the wrong host, so certificate verdicts come from these facts, not from page errors.
+  - `exposedFiles[]`: GETs of the first 4 KB of `/.env`, `/.env.local`, `/.env.production`, `/.git/HEAD`, `/.git/config`, `/.DS_Store`, `/.npmrc`, `/backup.zip`, `/backup.tar.gz`, `/backup.sql`, `/dump.sql`, `/database.sql`: `path`, `status`, `finalUrl`, `contentType`, `exposed` (true only when the body matches that file's format, so a fallback page is not counted).
+  - `graphql[]`: GET `/graphql` and `/api/graphql` with a minimal introspection query: `path`, `status`, `contentType`, `graphql` (the body is a GraphQL response), `introspection` (it returned `__schema`).
+  - `cors[]`: GET of `/`, each GraphQL path that answered, and each `--api` path with `Origin: https://evil.example`: `url`, `status`, `allowOrigin`, `allowCredentials`, `reflected`, `vary`.
 - `dnsVerification`: TXT records starting `google-site-verification` or `yandex-verification`, for the host and for the host without `www.`. Bing verifies DNS through a CNAME, which is not read.
 
 ### Per page (`pages[]`)
 
 - `url`, `finalUrl`, `status`, `redirects` (each hop's `url`, `status`, `location`), `ms`, `contentType`, `bytes`, `headers` (all response headers of the final hop, lowercased).
+- `security`: `hsts` (`maxAge`, `includeSubDomains`, `preload`); `csp`, `cspReportOnly`, `cspMeta` (directive name to source list, from the header, the report-only header and a `<meta http-equiv>`); `cookies[]` from every hop's `Set-Cookie` (`name`, `setBy`, `secure`, `httpOnly`, `sameSite`, `domain`, `path`, `persistent`).
 - `blocked`: set when a bot challenge answered (Cloudflare or Vercel), so the page is unreadable, not missing.
 - `platform`: `vercel`, `netlify` or `cloudflare` from response headers, else null.
 - `xRobotsTag`: the `X-Robots-Tag` header. `canonicalHeader`: a `rel=canonical` in the `Link` header.
@@ -43,6 +52,7 @@ One entry per origin that robots.txt resolves to.
   - `openGraph` and `twitter`: every `og:*` and `twitter:*` meta (by `property` or `name`), as a list of contents per key, since `og:image` may repeat.
   - `icons[]` (`icon`, `shortcut icon`, `apple-touch-icon*` and `mask-icon` links: `rel`, `href`, `resolved`, `sizes`, `type`); `manifest` (the resolved `rel=manifest` URL); `base` (the URL relative links resolve against).
   - `jsonLd[]`, one per `application/ld+json` script in head or body: `valid`, `types` (every `@type`, nested ones included), `bytes`, and `data` (the parsed value, when at most 20 KB; else `truncated`). An invalid block has `error` and an `excerpt` instead.
+  - `mixedContent` (https pages only, else null): up to 20 `http://` subresources in `src`, `srcset`, `href`, `data` or a form `action`: `tag`, `url`, `active` (script, stylesheet, iframe, object or embed, which browsers block).
   - `bodyTextLength` (visible text characters); `emptyMount` (the id of an empty `root`/`app`/`__next` mount div, a sign of a client-rendered shell); `internalLinks` (`count` and the first 100 same-origin `<a href>`s).
 
 - `socialImages[]`: each distinct URL in `og:image`, `og:image:url`, `og:image:secure_url`, `twitter:image` and `twitter:image:src`, at most 4: `tag`, `href`, `resolved`, plus the image facts.
@@ -67,6 +77,7 @@ Gather the fact list with the best detected tool, under the same names:
 
 - **curl**: `curl -sS -A '<browser UA>' --max-redirs 0 -D - -o <file> <url>` per hop, following `Location` by hand to record `redirects`. Parse robots.txt, sitemaps and the head from the saved bodies with the same rules as above. DNS TXT: `dig +short TXT <host>` or `nslookup -type=TXT <host>`.
 - **wget**: `wget -S --max-redirect=0 -O <file> <url>` per hop, the same way.
+- **TLS**: `openssl s_client -connect <host>:443 -servername <host> </dev/null | openssl x509 -noout -enddate -ext subjectAltName`.
 - **Image facts**: save each image (`curl -sS -r 0-65535 -D - -o <file> <url>`, a full GET when the size is missing) and read `format`, `width` and `height` with `file <file>` (PNG, JPEG, GIF, WebP), or `sips -g pixelWidth -g pixelHeight <file>` on macOS. `bytes` comes from the `Content-Range` total.
 - **Harness web fetch only**: it usually follows redirects and may render or summarize the page. Use it for robots.txt and sitemap bodies; mark `redirects`, `headers`, `xRobotsTag` and raw-HTML facts unverified unless it returns the raw response.
 

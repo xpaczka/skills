@@ -14,7 +14,7 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 ## Hard rules
 
 - **Report only.** Read project files; leave every one of them as it is. Fixes go in the report as one-line suggestions. The only writes are the build's own output and a dependency install the user approved.
-- **Read-only GETs.** Every live request is a GET. Before the first probe run, tell the user which URLs and paths you will request. No POSTs, form submissions or logins.
+- **Read-only GETs.** Every request to the audited site is a GET. Before the first probe run, tell the user which URLs and paths you will request. No POSTs, form submissions or logins.
 - **Raw HTML.** Judge the HTML the server sends, the way crawlers and link-preview scrapers see it. A tag that only appears after client-side JavaScript runs is absent.
 - **Evidence and a fix.** Every finding cites a `file:line` or a URL, and gives a one-line fix.
 - **Current guidance.** Report only what search engines and platforms use today; the CHECKS files encode it. Folklore (meta keywords, sitemap `priority`, `rel=prev/next`) is never a finding.
@@ -32,7 +32,7 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 3. **Source.** In the app, find the files behind the head, robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title`, `lang=`, `og:`, `twitter:`, `icon`, `manifest` and `ld+json`. Keep each hit's `file:line` for the findings.
 4. **Build** the app, then typecheck and lint when it has them ([DISCOVER.md](DISCOVER.md#build)). With dependencies missing, ask once before a frozen install.
 5. **Runtime.** A target URL is the live site. Without one, serve the build on a free port and use `http://localhost:<port>` ([DISCOVER.md](DISCOVER.md#serve-locally)).
-6. **Requests.** Tell the user what the run will GET: robots.txt, the sitemaps, each page, each canonical target that differs from its page, DNS TXT records for the host, each preview image, the icons and manifest, and the homepage again as `facebookexternalhit` and `Twitterbot`.
+6. **Requests.** Pick the `--api` routes ([CHECKS-SECURITY.md](CHECKS-SECURITY.md#cors)), run the probe with `--list-probes`, and show the user that list, plus the dependency audit's registry request. Then send them.
 7. **Homepage.** Run the probe on the target ([PROBE.md](PROBE.md)).
 8. **Pages.** Take candidates from `sites[].sitemap.urls`, else the homepage's `html.internalLinks`, plus the routes in the source. Under 15 candidates, check them all; otherwise check one page per route template (same path shape, one varying segment), at most 25. Run the probe on them with `--pages-only`. Then stop a local server.
 9. **Judge.** Apply every rule in the checks file of each category below; a local run also follows [DISCOVER.md](DISCOVER.md#judging-local-output). Done when every rule has a verdict: a finding, a pass, "not verifiable" or "not verified locally", with the reason.
@@ -47,6 +47,8 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 | Social previews | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
 | Icons and manifest | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
 | Structured data | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
+| Security | [CHECKS-SECURITY.md](CHECKS-SECURITY.md) |
+| Env/config parity | [CHECKS-SECURITY.md](CHECKS-SECURITY.md#envconfig-parity) |
 
 ## Environment capabilities
 

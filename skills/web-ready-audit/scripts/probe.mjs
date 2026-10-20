@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Fetches pages of a live site with read-only GETs and prints launch-readiness facts as JSON.
 // Zero dependencies: web-standard fetch plus node: built-ins that Bun and Deno also support.
-// Usage: probe.mjs [--pages-only] <url> [<url>...]
-import { resolveTxt } from 'node:dns/promises';
+// Usage: probe.mjs [--pages-only | --list-probes] [--api <path>]... <url> [<url>...]
+import { lookup, resolveTxt } from 'node:dns/promises';
+import { connect } from 'node:tls';
 import { gunzipSync } from 'node:zlib';
 
-const USAGE = 'usage: probe.mjs [--pages-only] <url> [<url>...]';
+const USAGE = 'usage: probe.mjs [--pages-only | --list-probes] [--api <path>]... <url> [<url>...]';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const TIMEOUT_MS = 15000;
 const MAX_HOPS = 10;
@@ -26,6 +27,28 @@ const MAX_SOCIAL_IMAGES = 4;
 const MAX_ICONS = 10;
 const MAX_JSONLD_BYTES = 20000;
 const IMAGE_RANGE = 'bytes=0-65535';
+const EVIL_ORIGIN = 'https://evil.example';
+const GRAPHQL_PATHS = ['/graphql', '/api/graphql'];
+const INTROSPECTION_QUERY = '{__schema{queryType{name}}}';
+const PROBE_RANGE = 'bytes=0-4095';
+const MAX_MIXED = 20;
+// Paths that must never be public, each with a check on the body so an SPA fallback page is not mistaken for the file.
+const dotenv = (b) => /^\s*(export\s+)?[A-Z_][A-Z0-9_]*\s*=/m.test(b.toString('utf8'));
+const sqlDump = (b) => /\b(CREATE TABLE|INSERT INTO)\b/i.test(b.toString('utf8'));
+const EXPOSED_FILES = {
+  '/.env': dotenv,
+  '/.env.local': dotenv,
+  '/.env.production': dotenv,
+  '/.git/HEAD': (b) => /^(ref: refs\/|[0-9a-f]{40}\s*$)/.test(b.toString('utf8')),
+  '/.git/config': (b) => /^\s*\[core\]/m.test(b.toString('utf8')),
+  '/.DS_Store': (b) => b.toString('latin1', 4, 8) === 'Bud1',
+  '/.npmrc': (b) => /_authToken|^\s*registry\s*=/m.test(b.toString('utf8')),
+  '/backup.zip': (b) => b.toString('latin1', 0, 4) === 'PK\x03\x04',
+  '/backup.tar.gz': (b) => b[0] === 0x1f && b[1] === 0x8b,
+  '/backup.sql': sqlDump,
+  '/dump.sql': sqlDump,
+  '/database.sql': sqlDump,
+};
 // Set when the audit target itself is local; only then are local and private hosts fetched.
 let auditingLocal = false;
 const skipHost = (url) => !auditingLocal && LOCAL_HOST.test(new URL(url).hostname);
@@ -35,6 +58,7 @@ const skipHost = (url) => !auditingLocal && LOCAL_HOST.test(new URL(url).hostnam
 // GETs url without following redirects automatically, so every hop is recorded.
 async function fetchChain(url, headers = {}) {
   const redirects = [];
+  const setCookies = [];
   let current = url;
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
     const started = Date.now();
@@ -43,6 +67,7 @@ async function fetchChain(url, headers = {}) {
       headers: { 'user-agent': UA, accept: '*/*', ...headers },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+    for (const line of res.headers.getSetCookie?.() ?? []) setCookies.push({ url: current, line });
     const location = res.headers.get('location');
     if (res.status >= 300 && res.status < 400 && location) {
       redirects.push({ url: current, status: res.status, location });
@@ -51,7 +76,7 @@ async function fetchChain(url, headers = {}) {
       continue;
     }
     const body = Buffer.from(await res.arrayBuffer());
-    return { res, body, redirects, finalUrl: current, ms: Date.now() - started };
+    return { res, body, redirects, setCookies, finalUrl: current, ms: Date.now() - started };
   }
   throw new Error(`more than ${MAX_HOPS} redirects`);
 }
@@ -142,6 +167,7 @@ function parseHtml(html, pageUrl) {
     .filter((t) => rels(t).includes('icon') || rels(t).some((r) => r.startsWith('apple-touch-icon') || r === 'mask-icon'))
     .map((t) => ({ rel: rels(t).join(' '), href: t.href ?? '', resolved: resolve(t.href ?? '', base), sizes: t.sizes ?? null, type: t.type ?? null }));
   const manifest = links.find((t) => rels(t).includes('manifest'));
+  const cspMeta = metas.find((t) => (t['http-equiv'] ?? '').toLowerCase() === 'content-security-policy')?.content ?? null;
 
   const verification = {};
   for (const t of metaNamed(...VERIFICATION_META)) verification[t.name.toLowerCase()] = t.content ?? '';
@@ -172,10 +198,27 @@ function parseHtml(html, pageUrl) {
     icons,
     manifest: manifest ? resolve(manifest.href ?? '', base) : null,
     jsonLd,
+    cspMeta,
+    mixedContent: new URL(pageUrl).protocol === 'https:' ? mixedContent(clean) : null,
     bodyTextLength: text.length,
     emptyMount: mount ? mount[1] : null,
     internalLinks: { count: internal.size, urls: [...internal].slice(0, MAX_LINKS) },
   };
+}
+
+// http:// subresources on an https page. Active ones (scripts, styles, frames) are blocked by browsers.
+function mixedContent(html) {
+  const out = [];
+  for (const m of html.matchAll(/<(script|link|iframe|img|source|video|audio|object|embed|form)\b([^>]*)>/gi)) {
+    const tag = m[1].toLowerCase();
+    const a = attrs(m[2]);
+    if (tag === 'link' && !/stylesheet|preload|modulepreload|icon|manifest/i.test(a.rel ?? '')) continue;
+    const attr = { link: 'href', object: 'data', form: 'action' }[tag] ?? 'src';
+    const urls = [a[attr], ...(a.srcset ?? '').split(',').map((c) => c.trim().split(/\s+/)[0])].filter((u) => /^http:\/\//i.test(u ?? ''));
+    const active = ['script', 'iframe', 'object', 'embed'].includes(tag) || (tag === 'link' && /stylesheet|modulepreload/i.test(a.rel ?? ''));
+    for (const url of urls) if (out.length < MAX_MIXED) out.push({ tag, url, active });
+  }
+  return out;
 }
 
 function jsonLdBlock(text) {
@@ -434,7 +477,7 @@ async function dnsVerification(hostname) {
 
 async function probePage(url, robots, siteFacts) {
   try {
-    const { res, body, redirects, finalUrl, ms } = await fetchChain(url);
+    const { res, body, redirects, setCookies, finalUrl, ms } = await fetchChain(url);
     const text = body.toString('utf8');
     const headers = headerObject(res);
     const contentType = headers['content-type'] ?? null;
@@ -458,6 +501,7 @@ async function probePage(url, robots, siteFacts) {
       html: /html/i.test(contentType ?? '') ? parseHtml(text, finalUrl) : null,
       canonicalTarget: null,
     };
+    page.security = securityFacts(headers, page.html, setCookies);
     const canonical = page.html?.canonicals[0]?.resolved ?? resolve(page.canonicalHeader ?? '', finalUrl);
     if (canonical && canonical.replace(/#.*$/, '') !== finalUrl) page.canonicalTarget = await probeTarget(canonical);
     if (page.html) {
@@ -480,6 +524,193 @@ async function probeTarget(url) {
   } catch (error) {
     return { url, error: errorText(error) };
   }
+}
+
+// --- Security ---
+
+function parseCsp(value) {
+  if (!value) return null;
+  const directives = {};
+  for (const part of value.split(/[;,]/)) {
+    const [name, ...tokens] = part.trim().split(/\s+/);
+    if (name) directives[name.toLowerCase()] ??= tokens;
+  }
+  return directives;
+}
+
+function parseHsts(value) {
+  if (!value) return null;
+  return {
+    maxAge: Number(value.match(/max-age\s*=\s*"?(\d+)/i)?.[1] ?? NaN),
+    includeSubDomains: /includesubdomains/i.test(value),
+    preload: /preload/i.test(value),
+  };
+}
+
+function parseCookie({ url, line }) {
+  const [pair, ...parts] = line.split(';').map((p) => p.trim());
+  const flags = Object.fromEntries(parts.map((p) => [p.split('=')[0].toLowerCase(), p.includes('=') ? p.slice(p.indexOf('=') + 1) : true]));
+  return {
+    name: pair.split('=')[0],
+    setBy: url,
+    secure: 'secure' in flags,
+    httpOnly: 'httponly' in flags,
+    sameSite: flags.samesite ?? null,
+    domain: flags.domain ?? null,
+    path: flags.path ?? null,
+    persistent: 'expires' in flags || 'max-age' in flags,
+  };
+}
+
+function securityFacts(headers, html, setCookies) {
+  return {
+    hsts: parseHsts(headers['strict-transport-security']),
+    csp: parseCsp(headers['content-security-policy']),
+    cspReportOnly: parseCsp(headers['content-security-policy-report-only']),
+    cspMeta: parseCsp(html?.cspMeta),
+    cookies: setCookies.map(parseCookie),
+  };
+}
+
+// The www or apex twin of a host: users type either, so both need a valid certificate.
+function twinHost(host) {
+  return host.startsWith('www.') ? host.slice(4) : `www.${host}`;
+}
+
+function certCovers(names, host) {
+  return names.some((n) => n === host || (n.startsWith('*.') && host.endsWith(n.slice(1)) && host.split('.').length === n.split('.').length));
+}
+
+async function tlsFacts(host) {
+  try {
+    await lookup(host);
+  } catch (error) {
+    return { host, resolves: false, error: error.code ?? error.message };
+  }
+  return new Promise((done) => {
+    const socket = connect({ host, port: 443, servername: host, rejectUnauthorized: false }, () => {
+      const cert = socket.getPeerCertificate();
+      const names = (cert.subjectaltname ?? '').split(/,\s*/).filter((n) => n.startsWith('DNS:')).map((n) => n.slice(4).toLowerCase());
+      const validTo = cert.valid_to ? new Date(cert.valid_to) : null;
+      done({
+        host,
+        resolves: true,
+        authorized: socket.authorized,
+        authorizationError: socket.authorizationError ? String(socket.authorizationError) : null,
+        coversHost: certCovers(names, host),
+        protocol: socket.getProtocol?.() ?? null,
+        issuer: cert.issuer?.O ?? cert.issuer?.CN ?? null,
+        altNames: names.slice(0, 50),
+        validTo: validTo?.toISOString() ?? null,
+        daysLeft: validTo ? Math.floor((validTo - Date.now()) / 86400000) : null,
+      });
+      socket.end();
+    });
+    socket.setTimeout(TIMEOUT_MS, () => {
+      socket.destroy();
+      done({ host, resolves: true, error: 'timeout' });
+    });
+    socket.on('error', (error) => done({ host, resolves: true, error: error.code ?? error.message }));
+  });
+}
+
+async function probeExposed(origin) {
+  const out = [];
+  for (const [path, looksReal] of Object.entries(EXPOSED_FILES)) {
+    try {
+      const { res, body, finalUrl } = await fetchChain(origin + path, { range: PROBE_RANGE });
+      const ok = res.status === 200 || res.status === 206;
+      out.push({ path, status: res.status, finalUrl, contentType: res.headers.get('content-type'), exposed: ok && looksReal(body) });
+    } catch (error) {
+      out.push({ path, error: errorText(error) });
+    }
+  }
+  return out;
+}
+
+async function probeGraphql(origin) {
+  const out = [];
+  for (const path of GRAPHQL_PATHS) {
+    const url = `${origin}${path}?query=${encodeURIComponent(INTROSPECTION_QUERY)}`;
+    try {
+      const { res, body } = await fetchChain(url, { accept: 'application/graphql-response+json,application/json' });
+      const text = body.toString('utf8', 0, 20000);
+      out.push({
+        path,
+        status: res.status,
+        contentType: res.headers.get('content-type'),
+        graphql: /^\s*\{\s*"(data|errors)"/.test(text),
+        introspection: /"__schema"\s*:\s*\{/.test(text),
+      });
+    } catch (error) {
+      out.push({ path, error: errorText(error) });
+    }
+  }
+  return out;
+}
+
+async function probeCors(url) {
+  try {
+    const { res } = await fetchChain(url, { origin: EVIL_ORIGIN });
+    const allowOrigin = res.headers.get('access-control-allow-origin');
+    return {
+      url,
+      status: res.status,
+      allowOrigin,
+      allowCredentials: res.headers.get('access-control-allow-credentials'),
+      reflected: allowOrigin === EVIL_ORIGIN,
+      vary: res.headers.get('vary'),
+    };
+  } catch (error) {
+    return { url, error: errorText(error) };
+  }
+}
+
+async function probeSiteSecurity(origin, apiPaths) {
+  const { protocol, hostname } = new URL(origin);
+  const graphql = await probeGraphql(origin);
+  const corsUrls = [origin + '/', ...graphql.filter((g) => g.graphql).map((g) => origin + g.path), ...apiPaths.map((p) => new URL(p, origin).href)];
+  const cors = [];
+  for (const url of corsUrls) cors.push(await probeCors(url));
+  const local = LOCAL_HOST.test(hostname);
+  return {
+    tls: protocol === 'https:' && !local ? [await tlsFacts(hostname), await tlsFacts(twinHost(hostname))] : null,
+    exposedFiles: await probeExposed(origin),
+    graphql,
+    cors,
+  };
+}
+
+// Every request a run sends, printed before any is sent. Requests that depend on responses are described, not listed.
+function plannedRequests(urls, pagesOnly, apiPaths) {
+  const origins = [...new Set(urls.map((u) => new URL(u).origin))];
+  const get = [];
+  const add = (url, purpose, headers) => get.push({ method: 'GET', url, purpose, ...(headers ? { headers } : {}) });
+  for (const origin of origins) add(`${origin}/robots.txt`, 'robots.txt');
+  for (const url of urls) add(url, 'page');
+  if (pagesOnly) return { get, dependent: ['each canonical target that differs from its page', 'each preview image (og:image, twitter:image)'] };
+  for (const origin of origins) {
+    for (const path of SITEMAP_GUESSES) add(origin + path, 'sitemap guess, only when robots.txt lists none');
+    add(`${origin}/favicon.ico`, 'favicon');
+    add(`${origin}/apple-touch-icon.png`, 'apple-touch-icon fallback, only when none is linked');
+    for (const path of Object.keys(EXPOSED_FILES)) add(origin + path, 'exposed file check (first 4 KB)', { range: PROBE_RANGE });
+    for (const path of GRAPHQL_PATHS) add(`${origin}${path}?query=${encodeURIComponent(INTROSPECTION_QUERY)}`, 'GraphQL introspection check');
+    add(`${origin}/`, 'CORS check', { origin: EVIL_ORIGIN });
+    for (const path of apiPaths) add(new URL(path, origin).href, 'CORS check', { origin: EVIL_ORIGIN });
+  }
+  for (const url of urls) for (const [name, ua] of Object.entries(SCRAPERS)) add(url, `re-fetch as ${name}`, { 'user-agent': ua });
+  const hosts = origins.map((o) => new URL(o)).filter((u) => u.protocol === 'https:' && !LOCAL_HOST.test(u.hostname)).map((u) => u.hostname);
+  return {
+    get,
+    tls: hosts.flatMap((h) => [h, twinHost(h)]).map((host) => `${host}:443 (handshake, certificate read)`),
+    dns: origins.map((o) => new URL(o).hostname).flatMap((h) => [...new Set([h, h.replace(/^www\./, '')])].map((n) => `TXT ${n}`)),
+    dependent: [
+      'sitemap files named in robots.txt and in sitemap indexes (up to 50)',
+      'each canonical target that differs from its page',
+      'each preview image, linked icon, the manifest and its icons',
+      'CORS check on each GraphQL path that answers as GraphQL',
+    ],
+  };
 }
 
 // --- Social previews, icons, manifest ---
@@ -573,13 +804,22 @@ function runtime() {
 
 async function main(argv) {
   const pagesOnly = argv.includes('--pages-only');
-  const targets = argv.filter((a) => !a.startsWith('--'));
-  if (argv.includes('--help') || !targets.length) {
+  const apiPaths = [];
+  const targets = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--api') apiPaths.push(argv[++i]);
+    else if (!argv[i].startsWith('--')) targets.push(argv[i]);
+  }
+  if (argv.includes('--help') || !targets.length || apiPaths.includes(undefined)) {
     console.error(USAGE);
-    process.exit(targets.length || argv.includes('--help') ? 0 : 2);
+    process.exit(argv.includes('--help') ? 0 : 2);
   }
   const urls = targets.map((t) => new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`).href);
   auditingLocal = urls.some((u) => LOCAL_HOST.test(new URL(u).hostname));
+  if (argv.includes('--list-probes')) {
+    console.log(JSON.stringify({ probe: 'web-ready-audit', mode: 'list-probes', ...plannedRequests(urls, pagesOnly, apiPaths) }, null, 2));
+    return;
+  }
 
   // One site per origin robots.txt resolves to, so http://x and https://x share facts when one redirects to the other.
   const sites = [];
@@ -594,6 +834,7 @@ async function main(argv) {
       robots,
       sitemap: pagesOnly ? null : await probeSitemaps(origin, robots.sitemaps),
       dnsVerification: pagesOnly ? null : await dnsVerification(new URL(origin).hostname),
+      security: pagesOnly ? null : await probeSiteSecurity(origin, apiPaths),
     });
   }
 
