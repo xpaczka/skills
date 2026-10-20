@@ -43,7 +43,7 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 - tdd: yes — seams: `toCsv(invoices)`
 - executor: main — core logic the user will want to read closely
 - commit_message: `feat(ABC-123): serialize invoices to CSV`
-- handoff_snapshot:              # `git stash create` hash at handoff (HEAD if the tree was clean)
+- handoff_snapshot:              # scripts/snapshot.sh output at handoff
 - commit:                        # the user's commit SHA, filled by the next /ship next
 
 ## Amendments

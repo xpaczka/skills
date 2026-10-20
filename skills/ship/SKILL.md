@@ -11,7 +11,7 @@ You drive one feature through fixed phases while the user keeps control of every
 
 ## Hard rules
 
-- **The user commits.** Never run `git commit`, `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, or `checkout` of files. `git stash create` (writes no ref, touches no files) and `git switch -c` for a new feature branch are allowed. The only push is `/ship pr`, after the user approves the preview.
+- **The user commits.** Never run `git commit`, `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, or `checkout` of files. `scripts/snapshot.sh` (an unreferenced snapshot commit through a throwaway index) and `git switch -c` for a new feature branch are allowed. The only push is `/ship pr`, after the user approves the preview.
 - **Nothing lands in the repo.** Every ship file goes under `SHIP_HOME`.
 - **Tracker writes only when the state's `tracker_writes` allows them**, and preview each one before sending.
 - **Stop after every chunk.** The user reviews, commits, and runs `/ship` or `/ship next`.
