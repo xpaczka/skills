@@ -20,7 +20,7 @@ One to three lines: what the feature does and for whom.
 
 ## Decisions
 
-The durable ones from the state file, each **what** — **why**.
+The durable ones from the state file, each **what**: **why**.
 
 ## Deviations and amendments
 

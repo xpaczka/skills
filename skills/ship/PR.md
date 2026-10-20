@@ -15,7 +15,7 @@ Opens a pull request for the feature branch, written in the repo's own conventio
 - **Body**, first that applies:
   1. `config.pr.template` exists → fill every section of the template; keep its headings and checkboxes.
   2. Recent PR bodies exist → follow their structure and length.
-  3. Neither → call the `pr` skill. Fallback: **Summary** (what and why, linking the ticket), **Changes** (one line per chunk), **Testing** (checks and acceptance commands run), **Notes** (risks, follow-ups).
+  3. Neither → Call the Skill tool with "pr". Fallback: **Summary** (what and why, linking the ticket), **Changes** (one line per chunk), **Testing** (checks and acceptance commands run), **Notes** (risks, follow-ups).
 
 ## 3. Preview
 

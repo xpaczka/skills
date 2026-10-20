@@ -4,9 +4,13 @@ Agent-agnostic [Agent Skills](https://agentskills.io) (`SKILL.md` format) for a 
 
 ## Catalog
 
-| Skill | Invocation | What it does |
-|---|---|---|
-| [ship](skills/ship/SKILL.md) | user: `/ship` | Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo. |
+### User-invoked
+
+- **[ship](skills/ship/SKILL.md)**: Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo.
+
+### Model-invoked
+
+None yet.
 
 ## Install
 
@@ -35,11 +39,4 @@ npx skills update -g          # pull the latest version
 
 ## Develop
 
-```sh
-scripts/link-dev.sh           # symlink every skills/* into ~/.agents/skills (+ ~/.claude/skills), so edits apply live
-scripts/link-dev.sh --undo    # remove those symlinks
-scripts/check.sh              # frontmatter, line budgets, whitespace rules, eval scaffolds, `claude plugin validate`
-scripts/eval.sh <skill>       # run a skill's eval suite (evals/<skill>/README.md); costs money
-```
-
-Conventions for writing a skill live in [AUTHORING.md](AUTHORING.md).
+The dev commands and the repo's rules for agents and authors live in [AGENTS.md](AGENTS.md), with topic docs in [.agents/](.agents/).

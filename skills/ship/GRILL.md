@@ -20,7 +20,7 @@ Collect issue IDs the ticket links or mentions; step 4 uses them.
 
 ## 3. Create the state file
 
-Create it from [templates/state.md](../templates/state.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**, the first **Timeline** entry. Replace every example value from the template; keep the section headings.
+Create it from [STATE-FORMAT.md](STATE-FORMAT.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**, the first **Timeline** entry. Replace every example value from the template; keep the section headings.
 
 ## 4. Pull in related work
 
@@ -32,7 +32,7 @@ Inherited decisions count as already settled. If the ticket contradicts one, tha
 
 Facts (what the code does, which APIs exist, versions) are yours to find; dispatch subagents for them when the harness has subagents. Decisions are the user's.
 
-- **Full** (`quick: false`): call the `grilling` skill. Brief it with the ticket, the inherited decisions as "already settled", and what you know about the codebase.
+- **Full** (`quick: false`): Call the Skill tool with "grilling". Brief it with the ticket, the inherited decisions as "already settled", and what you know about the codebase.
   - Fallback when `grilling` is missing: ask every open decision whose prerequisites are settled as one numbered round; give your recommended answer for each, worded so "yes" accepts it. Repeat until no decision is open and the user confirms you share an understanding.
 - **Quick** (`quick: true`): one round of the 2–3 decisions where a wrong guess would waste a whole chunk, each with a recommended answer.
 - **Tracker writes**: when `source` is a tracker and `tracker.kind` is not `none`, add a question to the first round: "Tracker writes for this feature: none / comment / comment+status?", recommending `tracker_writes_default`. Otherwise set `tracker_writes: none`.
@@ -43,12 +43,12 @@ After **each** round, write the newly settled decisions into **Decisions** befor
 
 Decisions are written for a planner who never saw this conversation:
 
-- one bullet per decision: **what** — **why**, plus the alternative rejected when there was one;
+- one bullet per decision: **what**: **why**, plus the alternative rejected when there was one;
 - an **Out of scope** bullet listing what the user excluded;
 - constraints the user mentioned in passing (deadlines, files not to touch, compatibility).
 
 Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning`, append the Timeline entry, and end with:
 
-> Grilling done — N decisions saved. `/clear`, then `/ship` to plan.
+> Grilling done: N decisions saved. `/clear`, then `/ship` to plan.
 
 (Use the capability table's wording when the harness cannot clear context.)

@@ -92,8 +92,8 @@ MD
 
 DECISIONS='## Decisions
 
-- One row per invoice line: invoice id, issue date, description, amount — accountants pivot on lines. Rejected: one row per invoice (loses line detail).
-- Dates use the user locale via `Intl.DateTimeFormat(locale)` — Excel misreads ISO dates in their locale. Rejected: ISO 8601.
-- Amounts are decimal strings with two places, no currency symbol — Excel sums them as numbers.
+- One row per invoice line (invoice id, issue date, description, amount): accountants pivot on lines. Rejected: one row per invoice (loses line detail).
+- Dates use the user locale via `Intl.DateTimeFormat(locale)`: Excel misreads ISO dates in their locale. Rejected: ISO 8601.
+- Amounts are decimal strings with two places and no currency symbol: Excel sums them as numbers.
 - Fields containing commas, quotes or newlines are quoted per RFC 4180.
 - Out of scope: a download UI; other export formats.'

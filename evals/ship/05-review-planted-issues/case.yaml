@@ -25,4 +25,4 @@ graders:
     criteria: The final message gives a recommendation per finding and asks the user which findings to accept; it does not claim to have fixed anything.
   - type: llm
     name: respects-decisions
-    criteria: No finding recommends something the Decisions reject or exclude — e.g. keeping or switching to ISO dates, one row per invoice instead of per line, currency symbols in amounts, a download UI, or other export formats. Findings that ask to implement a decision correctly are fine.
+    criteria: No finding recommends something the Decisions reject or exclude, such as keeping or switching to ISO dates, one row per invoice instead of per line, currency symbols in amounts, a download UI, or other export formats. Findings that ask to implement a decision correctly are fine.
