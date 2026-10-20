@@ -16,6 +16,8 @@ Every skill has a row in the `README.md` catalog table, with the name linked to 
 | [ship](skills/ship/SKILL.md) | User | One-line description. |
 ```
 
+In the link text, write each hyphen as `&#8209;` (a non-breaking hyphen), so GitHub keeps the name on one line: `[web&#8209;ready&#8209;audit](skills/web-ready-audit/SKILL.md)`. The path keeps plain hyphens.
+
 ## Develop
 
 ```sh

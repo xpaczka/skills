@@ -7,7 +7,7 @@ Agent-agnostic [Agent Skills](https://agentskills.io) (`SKILL.md` format) for a 
 | Skill | Invocation | Description |
 | --- | --- | --- |
 | [ship](skills/ship/SKILL.md) | User | Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo. |
-| [web-ready-audit](skills/web-ready-audit/SKILL.md) | User | Audit a website or web app before launch, on any stack: what is missing or misconfigured, as Blocker, Should fix and Nice to have findings. Report only, never edits. |
+| [web&#8209;ready&#8209;audit](skills/web-ready-audit/SKILL.md) | User | Audit a website or web app before launch, on any stack: what is missing or misconfigured, as Blocker, Should fix and Nice to have findings. Report only, never edits. |
 
 ## Install
 
