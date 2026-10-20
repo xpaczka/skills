@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: next-no-deps
+description: On a Next.js app without node_modules, the audit asks once before a frozen npm ci and, with no answer, installs, builds and edits nothing.
+tags: [local, dependencies]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:web-ready-audit"
+  max_turns: 40
+  timeout_seconds: 900
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: regex, name: names-frozen-install, pattern: "npm ci" }
+  - { type: tool_used, name: no-npm-ci, tool: Bash, input_match: "npm ci", min: 0, max: 0 }
+  - { type: tool_used, name: no-npm-install, tool: Bash, input_match: "npm install", min: 0, max: 0 }
+  - { type: tool_used, name: no-npx, tool: Bash, input_match: "npx ", min: 0, max: 0 }
+  - { type: tool_used, name: no-build, tool: Bash, input_match: "run build", min: 0, max: 0 }
+  - { type: file_exists, name: no-node-modules, path: node_modules, exists: false }
+  - { type: tool_used, name: edits-nothing, tool: Edit, min: 0, max: 0 }
+  - { type: tool_used, name: writes-no-project-file, tool: Write, input_match: "cwd/", min: 0, max: 0 }
+  - type: llm
+    name: asks-once-before-install
+    criteria: |
+      Pass if the agent asks the user once whether to install dependencies with `npm ci` (a frozen install from package-lock.json) so the build and local checks can run. Also offering to audit a live URL instead, if the user has one, is fine.
+      Either outcome after the question passes: it stops to wait for the answer, or it continues and reports the build and local runtime layers as skipped because dependencies are not installed.
+      Fail if it says it installed dependencies, claims the build ran or passed, or asks about the install more than once.
