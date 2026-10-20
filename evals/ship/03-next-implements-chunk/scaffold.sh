@@ -93,9 +93,9 @@ MD
 
 DECISIONS='## Decisions
 
-- One row per invoice line: invoice id, issue date, description, amount — accountants pivot on lines. Rejected: one row per invoice (loses line detail).
-- Dates use the user locale via `Intl.DateTimeFormat(locale)` — Excel misreads ISO dates in their locale. Rejected: ISO 8601.
-- Amounts are decimal strings with two places, no currency symbol — Excel sums them as numbers.
+- One row per invoice line (invoice id, issue date, description, amount): accountants pivot on lines. Rejected: one row per invoice (loses line detail).
+- Dates use the user locale via `Intl.DateTimeFormat(locale)`: Excel misreads ISO dates in their locale. Rejected: ISO 8601.
+- Amounts are decimal strings with two places and no currency symbol: Excel sums them as numbers.
 - Fields containing commas, quotes or newlines are quoted per RFC 4180.
 - Out of scope: a download UI; other export formats.'
 
@@ -116,8 +116,8 @@ Pure serializer first, then dates, then a CLI command. Every chunk runs \`node -
 - goal: \`toCsv(invoices)\` in \`src/csv.mjs\` returns a header row plus one row per invoice line (id, issue date as ISO for now, description, amount as a two-place decimal string).
 - files: \`src/csv.mjs\`, \`test/csv.test.mjs\`
 - acceptance: \`node --test\`
-- tdd: no — small pure function; tests written alongside
-- executor: main — core logic the user will read closely
+- tdd: no (small pure function; tests written alongside)
+- executor: main (core logic the user will read closely)
 - commit_message: \`feat(ABC-123): serialize invoice lines to CSV\`
 
 ### 2. Locale-aware dates

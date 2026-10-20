@@ -15,8 +15,8 @@ Pure serializer first, then dates, then a CLI command. Every chunk runs \`node -
 - goal: \`toCsv(invoices)\` in \`src/csv.mjs\` returns a header row plus one row per invoice line (id, issue date as ISO for now, description, amount as a two-place decimal string).
 - files: \`src/csv.mjs\`, \`test/csv.test.mjs\`
 - acceptance: \`node --test\`
-- tdd: no — small pure function; tests written alongside
-- executor: main — core logic the user will read closely
+- tdd: no (small pure function; tests written alongside)
+- executor: main (core logic the user will read closely)
 - commit_message: \`feat(ABC-123): serialize invoice lines to CSV\`
 
 ### 2. Locale-aware dates

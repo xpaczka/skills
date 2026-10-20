@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate every skill (frontmatter, line budgets, file layout, openai.yaml), whitespace rules, plugin manifest. Exits 1 on any failure.
+# Validate every skill (frontmatter, line budgets, file layout, openai.yaml), whitespace and em-dash rules, plugin manifest. Exits 1 on any failure.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -86,6 +86,11 @@ while IFS= read -r file; do
   [ -s "$file" ] && [ -n "$(tail -c 1 "$file")" ] && fail "$file: missing final newline"
   line=$(grep -n $'^\t' "$file" | head -1 | cut -d: -f1 || true)
   [ -z "$line" ] || fail "$file:$line: tab indentation (use 2 spaces)"
+  # No em-dashes outside recorded model output; matched by bytes so this script holds none.
+  case "$file" in evals/*/results/*) ;; *)
+    line=$(grep -n $'\xe2\x80\x94' "$file" | head -1 | cut -d: -f1 || true)
+    [ -z "$line" ] || fail "$file:$line: em-dash (rewrite with a comma, colon, period or parentheses)"
+  esac
   case "$file" in *.md) continue ;; esac
   line=$(grep -nE '[[:blank:]]+$' "$file" | head -1 | cut -d: -f1 || true)
   [ -z "$line" ] || fail "$file:$line: trailing whitespace"

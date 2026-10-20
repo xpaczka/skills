@@ -33,8 +33,8 @@ Present the approach, then every chunk in this shape, every field filled (no sum
 - goal: …
 - files: …
 - acceptance: `…`
-- tdd: yes — seams: … | no — <reason>
-- executor: main | subagent — <reason>
+- tdd: yes (seams: …) | no (<reason>)
+- executor: main | subagent (<reason>)
 - commit: `…`
 ```
 
@@ -51,4 +51,4 @@ Done when the state file holds the approved plan, after leaving plan mode:
 
 End with:
 
-> Plan saved — N chunks. `/clear`, then `/ship next` to start chunk 1.
+> Plan saved: N chunks. `/clear`, then `/ship next` to start chunk 1.

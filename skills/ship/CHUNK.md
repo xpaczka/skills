@@ -47,12 +47,12 @@ Run the chunk's `acceptance` commands and every configured `check`. For each fai
 3. Reply in this shape, and nothing longer:
 
 ```
-### Chunk N/M: <title> — checks green
+### Chunk N/M: <title> (checks green)
 **What and why**
 - …
 **Deviations**: none | - …
 **Look closely at**
-- `path:line` — why it is risky
+- `path:line`: why it is risky
 **Commit message**
 <commit_message, updated if the chunk changed>
 **Remaining**

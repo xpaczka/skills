@@ -31,15 +31,15 @@ In parallel subagents when the harness has them; otherwise one after the other, 
 Number every finding `R<round>.<n>`, blockers first, then by severity, labelled with its axis:
 
 ```
-R1.1 [thermo · blocker] path:line — finding → remedy
-R1.2 [spec · high] path:line — finding → remedy
+R1.1 [thermo · blocker] path:line: finding → remedy
+R1.2 [spec · high] path:line: finding → remedy
 ```
 
 Give a recommendation for each: accept blockers and highs unless one contradicts a **Decision** (say which, and recommend rejecting it, since decisions are settled), and judge medium and low on cost versus value. Write every finding into the round, update `metrics.review` (`findings`, `by_axis`, `by_severity`), and ask the user which to accept.
 
 ## 4. Triage into fix chunks
 
-Done when every finding is marked `accepted → chunk K` or `rejected — <user's reason>`.
+Done when every finding is marked `accepted → chunk K` or `rejected (<user's reason>)`.
 
 - Group accepted findings into chunks: related findings share one chunk, and every chunk follows the plan phase's chunk rules (fields, green, tests, size). Append them to **Chunks** with `kind: review-fix`, `status: pending`. Add the accepted count to `metrics.review.accepted`.
 - Fix chunks planned → set `phase: implementing`; end with "N fix chunks planned. `/ship next` to start."

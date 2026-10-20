@@ -12,7 +12,7 @@ Path: `SHIP_HOME/repos/<key>/records/<feature>-<title as kebab-case>.md`, from [
 
 - frontmatter: `final_commit` = HEAD's short SHA, `related` = the IDs under **Related work** and the ticket's links, `completed` = today;
 - **Goal**: 1–3 lines;
-- **Decisions**: the durable ones, each **what** — **why**;
+- **Decisions**: the durable ones, each **what**: **why**;
 - **Deviations and amendments**: what changed against the approved plan, and why;
 - **Review**: findings per axis and severity, accepted versus rejected, the one that mattered most;
 - **Commits**: ``git log --reverse --format='- `%h` %s' <base_commit>..HEAD``;
@@ -48,4 +48,4 @@ Only when the state's `tracker_writes` allows it:
 
 Set `phase: done` with its Timeline entry. Keep the state file; `/ship clean` deletes it. End with:
 
-> Done — record saved. `/ship pr` to open a PR, `/ship clean` to drop the live state.
+> Done, record saved. `/ship pr` to open a PR, `/ship clean` to drop the live state.

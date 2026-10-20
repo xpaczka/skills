@@ -43,12 +43,12 @@ After **each** round, write the newly settled decisions into **Decisions** befor
 
 Decisions are written for a planner who never saw this conversation:
 
-- one bullet per decision: **what** — **why**, plus the alternative rejected when there was one;
+- one bullet per decision: **what**: **why**, plus the alternative rejected when there was one;
 - an **Out of scope** bullet listing what the user excluded;
 - constraints the user mentioned in passing (deadlines, files not to touch, compatibility).
 
 Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning`, append the Timeline entry, and end with:
 
-> Grilling done — N decisions saved. `/clear`, then `/ship` to plan.
+> Grilling done: N decisions saved. `/clear`, then `/ship` to plan.
 
 (Use the capability table's wording when the harness cannot clear context.)

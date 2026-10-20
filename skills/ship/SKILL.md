@@ -58,8 +58,8 @@ Print, without doing any other work: feature ID and title, branch, phase, each c
 
 ### clean
 
-- `/ship clean` — delete the current branch's state file. If its phase is not `done`, confirm first: this abandons the feature's live state.
-- `/ship clean <ID>` — delete that feature's record and `.metrics.json` from `records/`, after confirming.
+- `/ship clean`: delete the current branch's state file. If its phase is not `done`, confirm first: this abandons the feature's live state.
+- `/ship clean <ID>`: delete that feature's record and `.metrics.json` from `records/`, after confirming.
 - Delete only inside `SHIP_HOME`.
 
 ## Phase transitions
@@ -80,8 +80,8 @@ On every phase change, set `phase` in the state frontmatter and append `- <phase
 
 Phases call these skills by name. Each phase carries a short fallback for when one is missing.
 
-- `grilling`, `tdd`, `pr` — `npx skills add mattpocock/skills -s grilling -s tdd -s pr -g`
-- `thermo-nuclear-code-quality-review` — `npx skills add https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/thermo-nuclear-code-quality-review -g`
+- `grilling`, `tdd`, `pr`: `npx skills add mattpocock/skills -s grilling -s tdd -s pr -g`
+- `thermo-nuclear-code-quality-review`: `npx skills add https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/thermo-nuclear-code-quality-review -g`
 
 ## End of every turn
 
