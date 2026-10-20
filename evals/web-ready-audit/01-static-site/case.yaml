@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: static-site
+description: With no URL, the audit builds a static site, inspects its output and puts each planted crawl and social-preview issue in the right tier, without editing anything.
+tags: [local, crawl, social]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:web-ready-audit"
+  max_turns: 60
+  timeout_seconds: 1200
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: tool_used, name: edits-nothing, tool: Edit, min: 0, max: 0 }
+  - { type: tool_used, name: writes-no-project-file, tool: Write, input_match: "cwd/", min: 0, max: 0 }
+  - { type: regex, name: tiered-report, pattern: "### Blocker[\\s\\S]*### Should fix[\\s\\S]*### Nice to have" }
+  - type: llm
+    name: disallow-all-is-blocker
+    criteria: "Pass if the Blocker section reports that robots.txt disallows the whole site (`Disallow: /` for all user agents). Fail if it is missing or sits in another tier."
+  - type: llm
+    name: missing-og-image-is-blocker
+    criteria: Pass if the Blocker section reports that the homepage has no og:image (or no Open Graph tags at all). Fail if it is missing or sits in another tier.
+  - type: llm
+    name: broken-og-image-is-blocker
+    criteria: Pass if the Blocker section reports that the about page's og:image (/og/about.png) is broken, returning 404 or not loading. A separate note that the URL is relative may sit in any tier. Fail if the 404 is missing or not a Blocker.
+  - type: llm
+    name: missing-twitter-card-is-should-fix
+    criteria: Pass if the Should fix section reports that `twitter:card` is missing. Fail if it is missing or reported as a Blocker or Nice to have.
+  - type: llm
+    name: report-shape
+    criteria: |
+      Pass if ALL hold:
+      - a header names the target as a local build (no production URL found) and lists which layers ran;
+      - every finding has an Evidence line (a file:line or a URL; for something missing, the files or folders where it was looked for) and a one-line Fix;
+      - the report does not claim to have changed or fixed any file.
+  - type: llm
+    name: honest-runtime-layer
+    criteria: The header's Layers line says how the runtime layer ran. The eval sandbox cannot bind a local port, so pass if it names the fallback it used instead (the emitted HTML in dist/, an in-process call, or skipped) and why. Fail if it claims a local server was started and probed.

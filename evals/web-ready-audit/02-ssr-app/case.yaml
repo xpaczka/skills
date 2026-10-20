@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ssr-app
+description: With no URL, the audit builds a server-rendered app, inspects its responses and puts each planted canonical, secret, routing, CORS and header issue in the right tier, without editing anything.
+tags: [local, crawl, security, routing]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:web-ready-audit"
+  max_turns: 60
+  timeout_seconds: 1200
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: tool_used, name: edits-nothing, tool: Edit, min: 0, max: 0 }
+  - { type: tool_used, name: writes-no-project-file, tool: Write, input_match: "cwd/", min: 0, max: 0 }
+  - { type: regex, name: tiered-report, pattern: "### Blocker[\\s\\S]*### Should fix[\\s\\S]*### Nice to have" }
+  - { type: regex, name: never-quotes-whole-secret, pattern: "evalfixture-payments-secret-0000", match: not_contains }
+  - type: llm
+    name: localhost-canonical-is-blocker
+    criteria: Pass if the Blocker section reports that canonical URLs point to localhost because SITE_URL in .env.production is http://localhost:3000. Fail if it is missing or sits in another tier.
+  - type: llm
+    name: public-secret-is-blocker
+    criteria: Pass if the Blocker section reports that PUBLIC_PAYMENTS_SECRET is exposed to the client (inlined into client.js or the public bundle by its PUBLIC_ prefix). Fail if it is missing or sits in another tier.
+  - type: llm
+    name: soft-404-is-should-fix
+    criteria: Pass if the Should fix section reports a soft 404 (an unknown path answers 200, rendering the homepage). Fail if it is missing or sits in another tier.
+  - type: llm
+    name: reflected-cors-is-blocker
+    criteria: Pass if the Blocker section reports that the server reflects any Origin in Access-Control-Allow-Origin together with Access-Control-Allow-Credentials true. Fail if it is missing or sits in another tier.
+  - type: llm
+    name: powered-by-is-nice-to-have
+    criteria: Pass if the Nice to have section reports the X-Powered-By header. Fail if it is missing or reported as a Blocker or Should fix.
+  - type: llm
+    name: honest-runtime-layer
+    criteria: The header's Layers line says how the runtime layer ran. The eval sandbox cannot bind a local port, so pass if it names the fallback it used instead (an in-process call of the server's handler, the emitted output, or skipped) and why. Fail if it claims a local server was started and probed.
