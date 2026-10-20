@@ -32,7 +32,7 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 3. **Source.** In the app, find the files behind the head, robots.txt and the sitemap (static files or generators), and the deploy config. Grep for `noindex`, `canonical`, `robots`, `sitemap`, `<title`, `lang=`, `og:`, `twitter:`, `icon`, `manifest` and `ld+json`. Keep each hit's `file:line` for the findings.
 4. **Build** the app, then typecheck and lint when it has them ([DISCOVER.md](DISCOVER.md#build)). With dependencies missing, ask once before a frozen install.
 5. **Runtime.** A target URL is the live site. Without one, serve the build on a free port and use `http://localhost:<port>` ([DISCOVER.md](DISCOVER.md#serve-locally)).
-6. **Requests.** Pick the `--api` routes ([CHECKS-SECURITY.md](CHECKS-SECURITY.md#cors)), run the probe with `--list-probes`, and show the user that list, plus the dependency audit's registry request. Then send them.
+6. **Requests.** Pick the `--api` routes ([CHECKS-SECURITY.md](CHECKS-SECURITY.md#cors)), run the probe with `--list-probes`, and show the user that list, plus the dependency audit's registry request and, when the mail check will run, its DNS lookups. Then send them.
 7. **Homepage.** Run the probe on the target ([PROBE.md](PROBE.md)).
 8. **Pages.** Take candidates from `sites[].sitemap.urls`, else the homepage's `html.internalLinks`, plus the routes in the source. Under 15 candidates, check them all; otherwise check one page per route template (same path shape, one varying segment), at most 25. Run the probe on them with `--pages-only`. Then stop a local server.
 9. **Judge.** Apply every rule in the checks file of each category below; a local run also follows [DISCOVER.md](DISCOVER.md#judging-local-output). Done when every rule has a verdict: a finding, a pass, "not verifiable" or "not verified locally", with the reason.
@@ -51,6 +51,9 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 | Performance basics | [CHECKS-SITE.md](CHECKS-SITE.md#caching) |
 | Security | [CHECKS-SECURITY.md](CHECKS-SECURITY.md) |
 | Env/config parity | [CHECKS-SECURITY.md](CHECKS-SECURITY.md#envconfig-parity) |
+| Accessibility basics | [CHECKS-OPS.md](CHECKS-OPS.md) |
+| Legal and ops | [CHECKS-OPS.md](CHECKS-OPS.md#legal) |
+| Conditional checks | [CHECKS-OPS.md](CHECKS-OPS.md#conditional-checks), each only when its signal shows |
 
 ## Environment capabilities
 

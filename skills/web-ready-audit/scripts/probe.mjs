@@ -2,11 +2,12 @@
 // Fetches pages of a live site with read-only GETs and prints launch-readiness facts as JSON.
 // Zero dependencies: web-standard fetch plus node: built-ins that Bun and Deno also support.
 // Usage: probe.mjs [--pages-only | --list-probes] [--api <path>]... <url> [<url>...]
-import { lookup, resolveTxt } from 'node:dns/promises';
+//        probe.mjs --mail-dns <domain> [--dkim-selector <name>]...
+import { lookup, resolveMx, resolveTxt } from 'node:dns/promises';
 import { connect } from 'node:tls';
 import { gunzipSync } from 'node:zlib';
 
-const USAGE = 'usage: probe.mjs [--pages-only | --list-probes] [--api <path>]... <url> [<url>...]';
+const USAGE = 'usage: probe.mjs [--pages-only | --list-probes] [--api <path>]... <url> [<url>...]\n       probe.mjs --mail-dns <domain> [--dkim-selector <name>]...';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const TIMEOUT_MS = 15000;
 const MAX_HOPS = 10;
@@ -32,6 +33,16 @@ const GRAPHQL_PATHS = ['/graphql', '/api/graphql'];
 const INTROSPECTION_QUERY = '{__schema{queryType{name}}}';
 const PROBE_RANGE = 'bytes=0-4095';
 const MAX_MIXED = 20;
+const WELL_KNOWN = {
+  securityTxt: ['/.well-known/security.txt', '/security.txt'],
+  adsTxt: ['/ads.txt'],
+  appleAppSiteAssociation: ['/.well-known/apple-app-site-association', '/apple-app-site-association'],
+  assetLinks: ['/.well-known/assetlinks.json'],
+};
+// Common DKIM selectors of mail providers (Google, Microsoft 365, Mailchimp/Mandrill, SendGrid, Resend, Postmark, Zoho, generic).
+const DKIM_SELECTORS = ['google', 'selector1', 'selector2', 'k1', 'k2', 'k3', 's1', 's2', 'resend', 'pm', 'mandrill', 'zoho', 'mail', 'dkim', 'default', 'smtp'];
+const LEGAL_LINK = /impressum|imprint|legal|privacy|datenschutz|terms|agb|accessibility|barrierefrei|cookie/i;
+const MAX_CONTROLS = 5;
 const NOT_FOUND_PREFIX = '/web-ready-audit-404-';
 const MAX_ASSET_LIST = 50;
 const MAX_SCRIPTS = 20;
@@ -190,7 +201,16 @@ function parseHtml(html, pageUrl) {
     fetchpriority: a.fetchpriority ?? null,
     width: a.width ?? null,
     height: a.height ?? null,
+    alt: 'alt' in a ? a.alt : null,
   }));
+  const feeds = links
+    .filter((t) => rels(t).includes('alternate') && /(rss|atom)\+xml/i.test(t.type ?? ''))
+    .map((t) => ({ type: t.type, href: resolve(t.href ?? '', base) }));
+  const ids = new Set([...body.matchAll(/\bid\s*=\s*["']?([^"'\s>]+)/gi)].map((m) => m[1]));
+  const anchors = [...body.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)].map((m) => ({ a: attrs(m[1]), inner: m[2], outer: m[0] }));
+  const buttons = [...body.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button\s*>/gi)].map((m) => ({ a: attrs(m[1]), inner: m[2], outer: m[0] }));
+  const skip = anchors.slice(0, 5).find(({ a, inner }) => (a.href ?? '').startsWith('#') && /skip|zum inhalt|springen|aller au contenu/i.test(`${textOf(inner)} ${a.class ?? ''}`));
+  const unnamed = [...anchors.filter(({ a }) => a.href !== undefined), ...buttons].filter(({ a, inner }) => !accessibleName(a, inner));
   const cspMeta = metas.find((t) => (t['http-equiv'] ?? '').toLowerCase() === 'content-security-policy')?.content ?? null;
 
   const verification = {};
@@ -231,10 +251,32 @@ function parseHtml(html, pageUrl) {
     resourceHints,
     images: images.slice(0, MAX_ASSET_LIST),
     imageCount: images.length,
+    feeds,
+    skipLink: skip ? { href: skip.a.href, text: textOf(skip.inner), targetExists: ids.has(skip.a.href.slice(1)) } : null,
+    unnamedControls: { count: unnamed.length, examples: unnamed.slice(0, MAX_CONTROLS).map((c) => c.outer.replace(/\s+/g, ' ').slice(0, 160)) },
+    legalLinks: [
+      ...new Map(
+        anchors
+          .map(({ a, inner }) => ({ href: resolve(a.href ?? '', base), text: textOf(inner) }))
+          .filter((l) => l.href && (LEGAL_LINK.test(new URL(l.href).pathname) || LEGAL_LINK.test(l.text)))
+          .map((l) => [l.href, l]),
+      ).values(),
+    ].slice(0, 20),
     bodyTextLength: text.length,
     emptyMount: mount ? mount[1] : null,
     internalLinks: { count: internal.size, urls: [...internal].slice(0, MAX_LINKS) },
   };
+}
+
+function textOf(html) {
+  return decodeEntities(html.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+// A link or button has a name from its text, an image alt inside it, or aria-label, aria-labelledby or title.
+function accessibleName(a, inner) {
+  if (a['aria-label']?.trim() || a['aria-labelledby'] || a.title?.trim()) return true;
+  if (textOf(inner)) return true;
+  return [...inner.matchAll(/<img\b([^>]*)>/gi)].some((m) => attrs(m[1]).alt?.trim()) || /<svg\b[^>]*\baria-label\s*=|<title\b[^>]*>\s*\S/i.test(inner);
 }
 
 // http:// subresources on an https page. Active ones (scripts, styles, frames) are blocked by browsers.
@@ -491,15 +533,29 @@ async function probeSitemaps(origin, declared) {
 
 // --- DNS ---
 
+// TXT records of a name, each joined from its 255-byte chunks, or { error }.
+async function txtRecords(name) {
+  let records;
+  try {
+    records = await resolveTxt(name);
+  } catch (error) {
+    return { error: error.code ?? error.message };
+  }
+  if (!globalThis.Bun) return records.map((r) => r.join(''));
+  // Bun returns each chunk as its own record; a chunk that does not open with a tag (v=, k=, name=) continues the one before.
+  const merged = [];
+  for (const chunk of records.flat()) {
+    if (merged.length && !/^[a-z][\w.-]*=/i.test(chunk)) merged[merged.length - 1] += chunk;
+    else merged.push(chunk);
+  }
+  return merged;
+}
+
 async function dnsVerification(hostname) {
   const out = {};
   for (const name of new Set([hostname, hostname.replace(/^www\./, '')])) {
-    try {
-      const records = (await resolveTxt(name)).map((r) => r.join(''));
-      out[name] = records.filter((t) => /^(google-site-verification|yandex-verification)/i.test(t));
-    } catch (error) {
-      out[name] = { error: error.code ?? error.message };
-    }
+    const records = await txtRecords(name);
+    out[name] = Array.isArray(records) ? records.filter((t) => /^(google-site-verification|yandex-verification)/i.test(t)) : records;
   }
   return out;
 }
@@ -729,6 +785,7 @@ function plannedRequests(urls, pagesOnly, apiPaths) {
     for (const path of GRAPHQL_PATHS) add(`${origin}${path}?query=${encodeURIComponent(INTROSPECTION_QUERY)}`, 'GraphQL introspection check');
     add(`${origin}/`, 'CORS check', { origin: EVIL_ORIGIN });
     add(`${origin}${NOT_FOUND_PREFIX}<random>`, 'deliberate 404');
+    for (const [name, paths] of Object.entries(WELL_KNOWN)) paths.forEach((path, i) => add(origin + path, i ? `${name} fallback, only when the first path fails` : name));
     const { protocol, hostname } = new URL(origin);
     if (protocol === 'https:' && !LOCAL_HOST.test(hostname)) {
       add(`http://${hostname}/`, 'http to https redirect');
@@ -864,6 +921,107 @@ async function probeAssets(page) {
   };
 }
 
+// --- Well-known files ---
+
+function parseSecurityTxt(text) {
+  const field = (name) => [...text.matchAll(new RegExp(`^${name}:\\s*(.+)$`, 'gim'))].map((m) => m[1].trim());
+  const expires = field('Expires')[0] ?? null;
+  const date = expires ? new Date(expires) : null;
+  return {
+    contact: field('Contact'),
+    expires,
+    daysToExpiry: date && !Number.isNaN(date.valueOf()) ? Math.floor((date - Date.now()) / 86400000) : null,
+    signed: /-----BEGIN PGP SIGNED MESSAGE-----/.test(text),
+  };
+}
+
+function parseAdsTxt(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.replace(/#.*/, '').trim()).filter(Boolean);
+  const records = lines.filter((l) => /^[^,=\s]+\s*,\s*[^,\s]+\s*,\s*(DIRECT|RESELLER)\b/i.test(l));
+  const variables = lines.filter((l) => /^[a-z]+=/i.test(l));
+  return { records: records.length, invalidLines: lines.length - records.length - variables.length };
+}
+
+function parseJsonFile(text) {
+  try {
+    const data = JSON.parse(text);
+    return { validJson: true, applinks: Boolean(data?.applinks), webcredentials: Boolean(data?.webcredentials), statements: Array.isArray(data) ? data.length : null };
+  } catch (error) {
+    return { validJson: false, parseError: error.message };
+  }
+}
+
+const WELL_KNOWN_PARSERS = { securityTxt: parseSecurityTxt, adsTxt: parseAdsTxt, appleAppSiteAssociation: parseJsonFile, assetLinks: parseJsonFile };
+
+// The first path of each file that answers 200 with a non-HTML body, else the last answer; `tried` lists every path's status.
+async function probeWellKnown(origin) {
+  const out = {};
+  for (const [name, paths] of Object.entries(WELL_KNOWN)) {
+    const tried = [];
+    for (const path of paths) {
+      try {
+        const { res, body, redirects, finalUrl } = await fetchChain(origin + path);
+        const contentType = res.headers.get('content-type');
+        tried.push({ path, status: res.status, redirects: redirects.length });
+        out[name] = { path, status: res.status, finalUrl, redirects, contentType, bytes: body.length, tried };
+        if (res.status === 200 && !/html/i.test(contentType ?? '')) {
+          Object.assign(out[name], WELL_KNOWN_PARSERS[name](body.toString('utf8')));
+          break;
+        }
+      } catch (error) {
+        tried.push({ path, error: errorText(error) });
+        out[name] = { path, error: errorText(error), tried };
+      }
+    }
+  }
+  return out;
+}
+
+// --- Mail DNS ---
+
+function tagValue(record, tag) {
+  return record.match(new RegExp(`(?:^|;)\\s*${tag}\\s*=\\s*([^;]+)`, 'i'))?.[1].trim() ?? null;
+}
+
+async function mailDns(domain, extraSelectors) {
+  const mx = await resolveMx(domain).then(
+    (records) => records.sort((a, b) => a.priority - b.priority).map(({ exchange, priority }) => ({ exchange, priority })),
+    (error) => ({ error: error.code ?? error.message }),
+  );
+  const root = await txtRecords(domain);
+  const spf = Array.isArray(root) ? root.filter((t) => /^v=spf1\b/i.test(t)) : root;
+  const dmarcTxt = await txtRecords(`_dmarc.${domain}`);
+  const dmarc = Array.isArray(dmarcTxt) ? dmarcTxt.filter((t) => /^v=DMARC1\b/i.test(t)) : dmarcTxt;
+  const selectors = [...new Set([...extraSelectors, ...DKIM_SELECTORS])];
+  const dkimFound = {};
+  for (const selector of selectors) {
+    const records = await txtRecords(`${selector}._domainkey.${domain}`);
+    const key = Array.isArray(records) ? records.find((t) => /\bp=/i.test(t)) : null;
+    if (!key) continue;
+    const p = tagValue(key, 'p') ?? '';
+    const type = tagValue(key, 'k') ?? 'rsa';
+    // An RSA public key's DER encoding is about 38 bytes plus the modulus, so this rounds to the key size.
+    const bytes = Buffer.from(p, 'base64').length;
+    dkimFound[selector] = { type, revoked: p === '', approxBits: type === 'rsa' && bytes ? Math.round(((bytes - 38) * 8) / 1024) * 1024 : null };
+  }
+  const first = Array.isArray(spf) ? spf[0] : null;
+  const policy = Array.isArray(dmarc) ? dmarc[0] : null;
+  return {
+    probe: 'web-ready-audit',
+    mode: 'mail-dns',
+    runtime: runtime(),
+    domain,
+    mx,
+    spf: Array.isArray(spf)
+      ? { records: spf, all: first?.match(/([~?+-]?)all\b/i)?.[0] ?? null, lookups: first ? first.split(/\s+/).filter((term) => /^[+~?-]?(include|a|mx|ptr|exists)([:/]|$)|^redirect=/i.test(term)).length : 0 }
+      : spf,
+    dmarc: Array.isArray(dmarc)
+      ? { records: dmarc, p: policy && tagValue(policy, 'p'), sp: policy && tagValue(policy, 'sp'), rua: policy && tagValue(policy, 'rua'), pct: policy && tagValue(policy, 'pct') }
+      : dmarc,
+    dkim: { checked: selectors, found: dkimFound },
+  };
+}
+
 // --- Social previews, icons, manifest ---
 
 async function socialImages(html) {
@@ -956,14 +1114,21 @@ function runtime() {
 async function main(argv) {
   const pagesOnly = argv.includes('--pages-only');
   const apiPaths = [];
+  const selectors = [];
   const targets = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--api') apiPaths.push(argv[++i]);
+    else if (argv[i] === '--dkim-selector') selectors.push(argv[++i]);
     else if (!argv[i].startsWith('--')) targets.push(argv[i]);
   }
-  if (argv.includes('--help') || !targets.length || apiPaths.includes(undefined)) {
+  if (argv.includes('--help') || !targets.length || [...apiPaths, ...selectors].includes(undefined)) {
     console.error(USAGE);
     process.exit(argv.includes('--help') ? 0 : 2);
+  }
+  if (argv.includes('--mail-dns')) {
+    const domain = targets[0].replace(/^https?:\/\//i, '').replace(/[/:].*$/, '');
+    console.log(JSON.stringify(await mailDns(domain, selectors), null, 2));
+    return;
   }
   const urls = targets.map((t) => new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`).href);
   auditingLocal = urls.some((u) => LOCAL_HOST.test(new URL(u).hostname));
@@ -986,6 +1151,7 @@ async function main(argv) {
       sitemap: pagesOnly ? null : await probeSitemaps(origin, robots.sitemaps),
       dnsVerification: pagesOnly ? null : await dnsVerification(new URL(origin).hostname),
       security: pagesOnly ? null : await probeSiteSecurity(origin, apiPaths),
+      wellKnown: pagesOnly ? null : await probeWellKnown(origin),
     });
   }
 

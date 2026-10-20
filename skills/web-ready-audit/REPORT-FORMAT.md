@@ -11,6 +11,7 @@ The audit's only output, written in chat. No file is written.
 - **Layers**: source ✔ · build ✔ | ✘ | skipped (<reason>) · typecheck ✔ | ✘ | none · lint ✔ | ✘ | none · runtime: live <url> | local `<command>` on :<port> | emitted HTML in `<folder>` | skipped (<reason>)
 - **Tool**: probe.mjs on <runtime and version> | <fallback tool> (unverified: <facts>)
 - **Pages**: <N> URLs found (<sitemap M>, <links K>), <C> checked; not covered: <templates or routes, or "none">
+- **Conditional**: <check>: ran (<signal>) | skipped (no <signal>), for each of mail authentication, Germany and Austria, migration redirects, ads, app links, blog feed
 - **Not verifiable**: <check: reason>, ...
 - **Not verified locally**: <deploy-only checks>, ... (local runs only)
 

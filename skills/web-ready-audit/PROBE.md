@@ -8,6 +8,7 @@
 node scripts/probe.mjs <url> [<url>...]            # or: bun scripts/probe.mjs, deno run --allow-net scripts/probe.mjs
 node scripts/probe.mjs --pages-only <url> [<url>...]
 node scripts/probe.mjs --list-probes [--pages-only] [--api <path>]... <url>   # prints the planned requests, sends none
+node scripts/probe.mjs --mail-dns <domain> [--dkim-selector <name>]...         # DNS only, for the mail check
 ```
 
 - `--list-probes` prints `get[]` (each GET with its purpose and any special header), `tls[]`, `dns[]`, and `dependent[]` (requests whose URLs come from responses). Show it to the user before the first real run.
@@ -38,6 +39,7 @@ One entry per origin that robots.txt resolves to.
   - `notFound`: GET of `/web-ready-audit-404-<random>`: `status`, `finalUrl`, `redirects`, `contentType`, `title`, `sameTitleAsHome`, `metaRobots`, `internalLinkCount`.
   - `httpToHttps` (`http://<host>/`) and `twinHost` (`https://<www or apex twin>/`): `status`, `finalUrl`, `redirects`, or `error`. Null for an http or local origin.
   - `trailingSlash`: the first internal link with a path and no file extension (`link`), requested with its trailing slash toggled: `status`, `finalUrl`, `redirects`. Null with no such link.
+- `wellKnown` (null with `--pages-only`): `securityTxt` (`/.well-known/security.txt`, else `/security.txt`), `adsTxt` (`/ads.txt`), `appleAppSiteAssociation` (`/.well-known/apple-app-site-association`, else the root path), `assetLinks` (`/.well-known/assetlinks.json`). Each: the first path answering 200 with a non-HTML body, else the last answer: `path`, `status`, `finalUrl`, `redirects`, `contentType`, `bytes`, `tried` (every path's `status` and redirect count). Parsed on success: security.txt `contact[]`, `expires`, `daysToExpiry`, `signed`; ads.txt `records`, `invalidLines`; the JSON files `validJson` (or `parseError`), `applinks`, `webcredentials`, `statements`.
 - `dnsVerification`: TXT records starting `google-site-verification` or `yandex-verification`, for the host and for the host without `www.`. Bing verifies DNS through a CNAME, which is not read.
 
 ### Per page (`pages[]`)
@@ -58,6 +60,7 @@ One entry per origin that robots.txt resolves to.
   - `jsonLd[]`, one per `application/ld+json` script in head or body: `valid`, `types` (every `@type`, nested ones included), `bytes`, and `data` (the parsed value, when at most 20 KB; else `truncated`). An invalid block has `error` and an `excerpt` instead.
   - `mixedContent` (https pages only, else null): up to 20 `http://` subresources in `src`, `srcset`, `href`, `data` or a form `action`: `tag`, `url`, `active` (script, stylesheet, iframe, object or embed, which browsers block).
   - `scripts[]` (`src`, `type`, `async`, `defer`, `inHead`) and `scriptCount`; `inlineScriptBytes` (non-JSON inline scripts); `stylesheets[]`; `resourceHints[]` (`preconnect`, `dns-prefetch`, `preload`, `modulepreload`: `rel`, `href`, `as`); `images[]` (`src`, `srcset`, `loading`, `fetchpriority`, `width`, `height` attributes) and `imageCount`. Lists hold at most 50.
+  - `images[].alt` is null when the attribute is missing (an empty string is a decorative image). `feeds[]` (RSS or Atom alternate links: `type`, `href`). `skipLink` (one of the first five links pointing to `#...` with skip wording: `href`, `text`, `targetExists`). `unnamedControls` (links and buttons with no text, image alt, `aria-label`, `aria-labelledby` or `title`: `count`, up to 5 `examples`). `legalLinks[]` (links whose path or text names an imprint, privacy, terms, cookies or accessibility page: `href`, `text`, at most 20).
   - `bodyTextLength` (visible text characters); `emptyMount` (the id of an empty `root`/`app`/`__next` mount div, a sign of a client-rendered shell); `internalLinks` (`count` and the first 100 same-origin `<a href>`s).
 
 - `socialImages[]`: each distinct URL in `og:image`, `og:image:url`, `og:image:secure_url`, `twitter:image` and `twitter:image:src`, at most 4: `tag`, `href`, `resolved`, plus the image facts.
@@ -77,12 +80,17 @@ Shared by preview images, icons and manifest icons. Each URL is fetched once per
 - `format` from the file's first bytes, not its content type: `png`, `jpeg`, `gif`, `webp`, `avif`, `heif`, `ico` (plus `icoSizes`), `bmp` or `svg`; null for anything else, such as an HTML error page.
 - `width`, `height` in pixels (an SVG's `width`/`height`, else its `viewBox`); null when unreadable.
 
+### Mail DNS (`--mail-dns`)
+
+Run only for the mail check. `domain`; `mx[]` (`exchange`, `priority`); `spf` (`records` starting `v=spf1`, `all` qualifier, `lookups`: top-level `include`, `a`, `mx`, `ptr`, `exists` and `redirect` terms); `dmarc` (`records` at `_dmarc.<domain>`, `p`, `sp`, `rua`, `pct`); `dkim` (`checked` selectors, the common ones plus each `--dkim-selector`, and `found`: per selector `type`, `revoked` for an empty key, `approxBits` for RSA). Bun returns each 255-byte chunk of a TXT record as its own record; the probe joins them back.
+
 ## Without a JS runtime
 
 Gather the fact list with the best detected tool, under the same names:
 
 - **curl**: `curl -sS -A '<browser UA>' --max-redirs 0 -D - -o <file> <url>` per hop, following `Location` by hand to record `redirects`. Parse robots.txt, sitemaps and the head from the saved bodies with the same rules as above. DNS TXT: `dig +short TXT <host>` or `nslookup -type=TXT <host>`.
 - **wget**: `wget -S --max-redirect=0 -O <file> <url>` per hop, the same way.
+- **Mail DNS**: `dig +short TXT <domain>`, `dig +short TXT _dmarc.<domain>`, `dig +short TXT <selector>._domainkey.<domain>`, `dig +short MX <domain>`.
 - **TLS**: `openssl s_client -connect <host>:443 -servername <host> </dev/null | openssl x509 -noout -enddate -ext subjectAltName`.
 - **Image facts**: save each image (`curl -sS -r 0-65535 -D - -o <file> <url>`, a full GET when the size is missing) and read `format`, `width` and `height` with `file <file>` (PNG, JPEG, GIF, WebP), or `sips -g pixelWidth -g pixelHeight <file>` on macOS. `bytes` comes from the `Content-Range` total.
 - **Harness web fetch only**: it usually follows redirects and may render or summarize the page. Use it for robots.txt and sitemap bodies; mark `redirects`, `headers`, `xRobotsTag` and raw-HTML facts unverified unless it returns the raw response.
