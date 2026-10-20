@@ -47,6 +47,8 @@ The method is the same on every stack (Next.js, Vite, TanStack, Astro, Django, R
 | Social previews | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
 | Icons and manifest | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
 | Structured data | [CHECKS-SOCIAL.md](CHECKS-SOCIAL.md) |
+| Error and routing hygiene | [CHECKS-SITE.md](CHECKS-SITE.md) |
+| Performance basics | [CHECKS-SITE.md](CHECKS-SITE.md#caching) |
 | Security | [CHECKS-SECURITY.md](CHECKS-SECURITY.md) |
 | Env/config parity | [CHECKS-SECURITY.md](CHECKS-SECURITY.md#envconfig-parity) |
 

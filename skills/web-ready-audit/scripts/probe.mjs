@@ -32,6 +32,11 @@ const GRAPHQL_PATHS = ['/graphql', '/api/graphql'];
 const INTROSPECTION_QUERY = '{__schema{queryType{name}}}';
 const PROBE_RANGE = 'bytes=0-4095';
 const MAX_MIXED = 20;
+const NOT_FOUND_PREFIX = '/web-ready-audit-404-';
+const MAX_ASSET_LIST = 50;
+const MAX_SCRIPTS = 20;
+const MAX_STYLESHEETS = 10;
+const MAX_IMAGES = 10;
 // Paths that must never be public, each with a check on the body so an SPA fallback page is not mistaken for the file.
 const dotenv = (b) => /^\s*(export\s+)?[A-Z_][A-Z0-9_]*\s*=/m.test(b.toString('utf8'));
 const sqlDump = (b) => /\b(CREATE TABLE|INSERT INTO)\b/i.test(b.toString('utf8'));
@@ -167,6 +172,25 @@ function parseHtml(html, pageUrl) {
     .filter((t) => rels(t).includes('icon') || rels(t).some((r) => r.startsWith('apple-touch-icon') || r === 'mask-icon'))
     .map((t) => ({ rel: rels(t).join(' '), href: t.href ?? '', resolved: resolve(t.href ?? '', base), sizes: t.sizes ?? null, type: t.type ?? null }));
   const manifest = links.find((t) => rels(t).includes('manifest'));
+  const scriptTags = [...clean.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)].map((m) => ({ ...attrs(m[1]), inline: m[2] }));
+  const inHead = (index) => headEnd === -1 || index < headEnd;
+  const scripts = [...clean.matchAll(/<script\b([^>]*)>/gi)]
+    .map((m) => ({ a: attrs(m[1]), index: m.index }))
+    .filter(({ a }) => a.src)
+    .map(({ a, index }) => ({ src: resolve(a.src, base), type: a.type ?? null, async: 'async' in a, defer: 'defer' in a, inHead: inHead(index) }));
+  const inlineScriptBytes = scriptTags.filter((t) => !t.src && !/json/i.test(t.type ?? '')).reduce((n, t) => n + t.inline.length, 0);
+  const stylesheets = links.filter((t) => rels(t).includes('stylesheet')).map((t) => resolve(t.href ?? '', base));
+  const resourceHints = links
+    .filter((t) => rels(t).some((r) => ['preconnect', 'dns-prefetch', 'preload', 'modulepreload'].includes(r)))
+    .map((t) => ({ rel: rels(t).join(' '), href: resolve(t.href ?? '', base), as: t.as ?? null }));
+  const images = [...body.matchAll(/<img\b([^>]*)>/gi)].map((m) => attrs(m[1])).map((a) => ({
+    src: resolve(a.src ?? '', base),
+    srcset: Boolean(a.srcset),
+    loading: a.loading ?? null,
+    fetchpriority: a.fetchpriority ?? null,
+    width: a.width ?? null,
+    height: a.height ?? null,
+  }));
   const cspMeta = metas.find((t) => (t['http-equiv'] ?? '').toLowerCase() === 'content-security-policy')?.content ?? null;
 
   const verification = {};
@@ -200,6 +224,13 @@ function parseHtml(html, pageUrl) {
     jsonLd,
     cspMeta,
     mixedContent: new URL(pageUrl).protocol === 'https:' ? mixedContent(clean) : null,
+    scripts: scripts.slice(0, MAX_ASSET_LIST),
+    scriptCount: scripts.length,
+    inlineScriptBytes,
+    stylesheets: stylesheets.slice(0, MAX_ASSET_LIST),
+    resourceHints,
+    images: images.slice(0, MAX_ASSET_LIST),
+    imageCount: images.length,
     bodyTextLength: text.length,
     emptyMount: mount ? mount[1] : null,
     internalLinks: { count: internal.size, urls: [...internal].slice(0, MAX_LINKS) },
@@ -509,6 +540,7 @@ async function probePage(url, robots, siteFacts) {
       page.icons = siteFacts ? await probeIcons(page.html, page, robots) : null;
       page.manifest = siteFacts ? await probeManifest(page.html.manifest) : null;
       page.scrapers = siteFacts ? await probeScrapers(url) : null;
+      page.assets = siteFacts ? await probeAssets(page) : null;
     }
     return page;
   } catch (error) {
@@ -696,6 +728,12 @@ function plannedRequests(urls, pagesOnly, apiPaths) {
     for (const path of Object.keys(EXPOSED_FILES)) add(origin + path, 'exposed file check (first 4 KB)', { range: PROBE_RANGE });
     for (const path of GRAPHQL_PATHS) add(`${origin}${path}?query=${encodeURIComponent(INTROSPECTION_QUERY)}`, 'GraphQL introspection check');
     add(`${origin}/`, 'CORS check', { origin: EVIL_ORIGIN });
+    add(`${origin}${NOT_FOUND_PREFIX}<random>`, 'deliberate 404');
+    const { protocol, hostname } = new URL(origin);
+    if (protocol === 'https:' && !LOCAL_HOST.test(hostname)) {
+      add(`http://${hostname}/`, 'http to https redirect');
+      add(`https://${twinHost(hostname)}/`, 'www or apex redirect');
+    }
     for (const path of apiPaths) add(new URL(path, origin).href, 'CORS check', { origin: EVIL_ORIGIN });
   }
   for (const url of urls) for (const [name, ua] of Object.entries(SCRAPERS)) add(url, `re-fetch as ${name}`, { 'user-agent': ua });
@@ -709,7 +747,120 @@ function plannedRequests(urls, pagesOnly, apiPaths) {
       'each canonical target that differs from its page',
       'each preview image, linked icon, the manifest and its icons',
       'CORS check on each GraphQL path that answers as GraphQL',
+      'the first internal link with its trailing slash toggled',
+      `homepage scripts (up to ${MAX_SCRIPTS}), stylesheets (up to ${MAX_STYLESHEETS}) and images (up to ${MAX_IMAGES}), in full`,
     ],
+  };
+}
+
+// --- Routing ---
+
+function chainFacts({ res, redirects, finalUrl }) {
+  return { status: res.status, finalUrl, redirects };
+}
+
+async function chainOrError(url) {
+  try {
+    return { url, ...chainFacts(await fetchChain(url)) };
+  } catch (error) {
+    return { url, error: errorText(error) };
+  }
+}
+
+// The same path with the trailing slash toggled, from the first internal link that has a path.
+function trailingSlashTwin(page) {
+  const link = (page.html?.internalLinks.urls ?? []).map((u) => new URL(u)).find((u) => u.pathname.length > 1 && !/\.[a-z0-9]+$/i.test(u.pathname));
+  if (!link) return null;
+  const twin = new URL(link);
+  twin.pathname = link.pathname.endsWith('/') ? link.pathname.slice(0, -1) : `${link.pathname}/`;
+  return { link: link.href, twin: twin.href };
+}
+
+async function probeRouting(origin, homepage) {
+  const { protocol, hostname } = new URL(origin);
+  const remote = protocol === 'https:' && !LOCAL_HOST.test(hostname);
+  const notFoundUrl = `${origin}${NOT_FOUND_PREFIX}${Math.random().toString(36).slice(2, 10)}`;
+  let notFound;
+  try {
+    const got = await fetchChain(notFoundUrl);
+    const html = /html/i.test(got.res.headers.get('content-type') ?? '') ? parseHtml(got.body.toString('utf8'), got.finalUrl) : null;
+    notFound = {
+      url: notFoundUrl,
+      ...chainFacts(got),
+      contentType: got.res.headers.get('content-type'),
+      title: html?.titles[0] ?? null,
+      sameTitleAsHome: Boolean(html?.titles[0]) && html.titles[0] === homepage?.html?.titles[0],
+      metaRobots: html?.metaRobots ?? [],
+      internalLinkCount: html?.internalLinks.count ?? 0,
+    };
+  } catch (error) {
+    notFound = { url: notFoundUrl, error: errorText(error) };
+  }
+  const slash = homepage ? trailingSlashTwin(homepage) : null;
+  return {
+    notFound,
+    httpToHttps: remote ? await chainOrError(`http://${hostname}/`) : null,
+    twinHost: remote ? await chainOrError(`https://${twinHost(hostname)}/`) : null,
+    trailingSlash: slash ? { link: slash.link, ...(await chainOrError(slash.twin)) } : null,
+  };
+}
+
+// --- Assets ---
+
+// A content hash in the file name: a dot- or dash-separated part of 8+ characters that mixes letters with digits,
+// or holds 3+ capitals among lowercase (Vite's base64 hashes, such as DKMfOyQO).
+function looksHashed(url) {
+  const name = new URL(url).pathname.split('/').pop().replace(/\.[a-z0-9]+$/i, '');
+  const hashLike = (part) => /\d/.test(part) || ((part.match(/[A-Z]/g) ?? []).length >= 3 && /[a-z]/.test(part));
+  return name.split(/[.-]/).some((part) => part.length >= 8 && /^[A-Za-z0-9_]+$/.test(part) && /[a-z]/i.test(part) && hashLike(part));
+}
+
+function siteOf(hostname) {
+  return hostname.replace(/^www\./, '').split('.').slice(-2).join('.');
+}
+
+async function fetchAsset(url, pageHost) {
+  const thirdParty = siteOf(new URL(url).hostname) !== siteOf(pageHost);
+  if (skipHost(url)) return { url, thirdParty, skipped: 'local or private host' };
+  try {
+    const { res, body, finalUrl } = await fetchChain(url);
+    return {
+      url,
+      finalUrl,
+      thirdParty,
+      status: res.status,
+      contentType: res.headers.get('content-type'),
+      bytes: body.length,
+      encodedBytes: Number(res.headers.get('content-length')) || null,
+      contentEncoding: res.headers.get('content-encoding'),
+      cacheControl: res.headers.get('cache-control'),
+      hashed: looksHashed(finalUrl),
+    };
+  } catch (error) {
+    return { url, thirdParty, error: errorText(error) };
+  }
+}
+
+async function probeAssets(page) {
+  const pageHost = new URL(page.finalUrl).hostname;
+  const scripts = [];
+  for (const s of page.html.scripts.slice(0, MAX_SCRIPTS)) if (/^https?:/.test(s.src ?? '')) scripts.push({ ...s, ...(await fetchAsset(s.src, pageHost)) });
+  const stylesheets = [];
+  for (const href of page.html.stylesheets.slice(0, MAX_STYLESHEETS)) if (/^https?:/.test(href ?? '')) stylesheets.push(await fetchAsset(href, pageHost));
+  const images = [];
+  for (const img of page.html.images.filter((i) => /^https?:/.test(i.src ?? '')).slice(0, MAX_IMAGES)) images.push({ ...img, ...(await probeImage(img.src)) });
+  const sum = (list, key) => list.reduce((n, a) => n + (a[key] ?? 0), 0);
+  return {
+    scripts,
+    stylesheets,
+    images,
+    totals: {
+      scriptBytes: sum(scripts, 'bytes'),
+      styleBytes: sum(stylesheets, 'bytes'),
+      imageBytes: sum(images, 'bytes'),
+      thirdPartyScriptBytes: sum(scripts.filter((s) => s.thirdParty), 'bytes'),
+      thirdPartyHosts: [...new Set([...scripts, ...stylesheets].filter((a) => a.thirdParty).map((a) => new URL(a.url).hostname))],
+    },
   };
 }
 
@@ -840,6 +991,11 @@ async function main(argv) {
 
   const pages = [];
   for (const url of urls) pages.push(await probePage(url, robotsByOrigin[new URL(url).origin], !pagesOnly));
+
+  for (const site of sites) {
+    const homepage = pages.find((p) => p.finalUrl && new URL(p.finalUrl).origin === site.origin);
+    site.routing = pagesOnly ? null : await probeRouting(site.origin, homepage);
+  }
 
   const sitemapUrls = new Set(sites.flatMap((s) => s.sitemap?.urls ?? []));
   for (const page of pages) page.inSitemap = pagesOnly ? null : sitemapUrls.has(page.url) || sitemapUrls.has(page.finalUrl);

@@ -34,6 +34,10 @@ One entry per origin that robots.txt resolves to.
   - `exposedFiles[]`: GETs of the first 4 KB of `/.env`, `/.env.local`, `/.env.production`, `/.git/HEAD`, `/.git/config`, `/.DS_Store`, `/.npmrc`, `/backup.zip`, `/backup.tar.gz`, `/backup.sql`, `/dump.sql`, `/database.sql`: `path`, `status`, `finalUrl`, `contentType`, `exposed` (true only when the body matches that file's format, so a fallback page is not counted).
   - `graphql[]`: GET `/graphql` and `/api/graphql` with a minimal introspection query: `path`, `status`, `contentType`, `graphql` (the body is a GraphQL response), `introspection` (it returned `__schema`).
   - `cors[]`: GET of `/`, each GraphQL path that answered, and each `--api` path with `Origin: https://evil.example`: `url`, `status`, `allowOrigin`, `allowCredentials`, `reflected`, `vary`.
+- `routing` (null with `--pages-only`):
+  - `notFound`: GET of `/web-ready-audit-404-<random>`: `status`, `finalUrl`, `redirects`, `contentType`, `title`, `sameTitleAsHome`, `metaRobots`, `internalLinkCount`.
+  - `httpToHttps` (`http://<host>/`) and `twinHost` (`https://<www or apex twin>/`): `status`, `finalUrl`, `redirects`, or `error`. Null for an http or local origin.
+  - `trailingSlash`: the first internal link with a path and no file extension (`link`), requested with its trailing slash toggled: `status`, `finalUrl`, `redirects`. Null with no such link.
 - `dnsVerification`: TXT records starting `google-site-verification` or `yandex-verification`, for the host and for the host without `www.`. Bing verifies DNS through a CNAME, which is not read.
 
 ### Per page (`pages[]`)
@@ -53,6 +57,7 @@ One entry per origin that robots.txt resolves to.
   - `icons[]` (`icon`, `shortcut icon`, `apple-touch-icon*` and `mask-icon` links: `rel`, `href`, `resolved`, `sizes`, `type`); `manifest` (the resolved `rel=manifest` URL); `base` (the URL relative links resolve against).
   - `jsonLd[]`, one per `application/ld+json` script in head or body: `valid`, `types` (every `@type`, nested ones included), `bytes`, and `data` (the parsed value, when at most 20 KB; else `truncated`). An invalid block has `error` and an `excerpt` instead.
   - `mixedContent` (https pages only, else null): up to 20 `http://` subresources in `src`, `srcset`, `href`, `data` or a form `action`: `tag`, `url`, `active` (script, stylesheet, iframe, object or embed, which browsers block).
+  - `scripts[]` (`src`, `type`, `async`, `defer`, `inHead`) and `scriptCount`; `inlineScriptBytes` (non-JSON inline scripts); `stylesheets[]`; `resourceHints[]` (`preconnect`, `dns-prefetch`, `preload`, `modulepreload`: `rel`, `href`, `as`); `images[]` (`src`, `srcset`, `loading`, `fetchpriority`, `width`, `height` attributes) and `imageCount`. Lists hold at most 50.
   - `bodyTextLength` (visible text characters); `emptyMount` (the id of an empty `root`/`app`/`__next` mount div, a sign of a client-rendered shell); `internalLinks` (`count` and the first 100 same-origin `<a href>`s).
 
 - `socialImages[]`: each distinct URL in `og:image`, `og:image:url`, `og:image:secure_url`, `twitter:image` and `twitter:image:src`, at most 4: `tag`, `href`, `resolved`, plus the image facts.
@@ -61,6 +66,7 @@ One entry per origin that robots.txt resolves to.
 
 - `icons`: `linked[]` (each of `html.icons`, at most 10), `faviconIco` (`/favicon.ico`), `appleTouchFallback` (`/apple-touch-icon.png`, only when no apple-touch-icon is linked; iOS requests it anyway). Each carries the image facts, and a same-origin one also `robotsTxt` for Googlebot-Image, which falls back to the Googlebot group, then `*`.
 - `manifest`: GET of `html.manifest`: `status`, `finalUrl`, `redirects`, `contentType`, `parseError`; the fields `id`, `name`, `short_name`, `start_url`, `scope`, `display`, `theme_color`, `background_color`, `prefer_related_applications`; `iconCount` and `icons[]` (the first 10: `src`, `sizes`, `type`, `purpose`, plus the image facts).
+- `assets`: full GETs of the first 20 `html.scripts`, 10 `html.stylesheets` and 10 `html.images`. Scripts and stylesheets: `url`, `finalUrl`, `status`, `contentType`, `bytes` (decoded), `encodedBytes` (`Content-Length`, null when the response is chunked), `contentEncoding`, `cacheControl`, `hashed` (the file name holds a content hash: a dot- or dash-separated part of 8+ characters mixing letters with digits, or 3+ capitals among lowercase), `thirdParty` (last two host labels differ from the page's, `www.` ignored). Images: the `html.images` fields plus the image facts. `totals`: `scriptBytes`, `styleBytes`, `imageBytes`, `thirdPartyScriptBytes`, `thirdPartyHosts`.
 - `scrapers.facebookexternalhit`, `scrapers.Twitterbot`: the page re-fetched with that scraper's user agent: `status`, `finalUrl`, `blocked`, `ogTitle`, `ogImage`, `twitterCard`.
 
 ### Image facts
