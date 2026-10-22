@@ -26,9 +26,10 @@ You merge the parent branch into the current branch end to end: sync both with t
    - **No remote at all**: nothing to sync; merge the local `<parent>`, and the gate skips the push.
 5. **Nothing to merge?** With `<ref>` as `origin/<parent>` (the local `<parent>` without a remote):
    - `git merge-base --is-ancestor <ref> HEAD` succeeds: print "Already up to date with `<ref>`." and stop.
-   - `git merge-base --is-ancestor HEAD <ref>` succeeds: the branch has no commits of its own. Run `git merge --ff-only <ref>` (no merge commit) and go to step 7.
+   - `git merge-base --is-ancestor HEAD <ref>` succeeds: the branch has no commits of its own. Run `git merge --ff-only <ref>` (no merge commit) and go to step 8: the result is the parent's own tip, so there is nothing new to verify.
 6. **Merge.** Run `git -c merge.conflictStyle=zdiff3 merge --no-commit --no-ff origin/<parent>` (the local `<parent>` without a remote). Both flags matter: the merge always pauses before committing, so nothing lands before the gate. With conflicts, run `scripts/context.sh conflicts` (in this skill's folder) before opening any file: its per-file history and blobs are the input to [RESOLVE.md](RESOLVE.md), which you then follow until every conflicted file is resolved and staged.
-7. **Gate.** Show the report in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md) (its fast-forward shape after step 5) and wait.
+7. **Verify.** Clean or resolved, follow [VERIFY.md](VERIFY.md): the semantic scan, then the project's checks. Fixes for what the merge broke are staged into the same merge.
+8. **Gate.** Show the report in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md) (its fast-forward shape after step 5) and wait.
    - **Yes**: commit with the report's message (`git commit -F <file>`; nothing to commit after a fast-forward), then push: `git push` with an upstream, `git push -u origin <branch>` without one. A rejected push stops: report git's message; the commit stays.
    - **Anything else**: apply the requested change, show the updated report, and wait again. The merge stays in progress (a fast-forward stays local).
 

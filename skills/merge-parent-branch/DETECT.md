@@ -18,7 +18,7 @@ If `branch` is the `default` branch, print "`<branch>` is the default branch: th
 
 ## 3. Confirm or ask
 
-**`pick=<name>`**: show the pick with each signal as evidence, and wait.
+**`pick=<name>`**: show the pick in this shape, with each signal as evidence, and wait. The `Parent:` line and the reply line stay word for word: they are what the user scans for.
 
 ```md
 Parent: `develop`

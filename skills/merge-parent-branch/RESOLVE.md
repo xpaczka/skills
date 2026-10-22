@@ -42,6 +42,15 @@ Statuses other than both-modified (`UU`):
 - **`UD` / `DU`** (deleted on one side, modified on the other): check whether the deleting side moved the code (`git log --follow` and a grep for its symbols). Moved: port the modification to the new place and `git rm` the old path. Removed outright: ask.
 - **`DD`**: `git rm` it.
 
+## Lockfiles and generated files
+
+Never merge these by hand: a hand-merged lockfile describes a tree no tool produced.
+
+- **Lockfiles** (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `Cargo.lock`, `poetry.lock`, `uv.lock`, `Gemfile.lock`, `go.sum`): resolve the manifest (`package.json`, `Cargo.toml`, ...) first like any file. Then take the parent's lockfile (`git checkout --theirs -- <file>`) and regenerate it from the merged manifest with the project's tool (`npm install`, `pnpm install`, `cargo update --workspace`, `poetry lock --no-update`, `go mod tidy`, ...), so the branch's dependency changes are reapplied on top of the parent's. Ask once before running the install, then stage the result.
+- **Generated files** (a `Code generated ... DO NOT EDIT` header, codegen output, checked-in build output): take the parent's version, rerun the generator the header or the project's scripts name, and stage the result.
+
+Declined install or no known generator: keep the parent's version staged and say in the report that the branch's changes to that file are missing until it is regenerated.
+
 ## Parallel analysis
 
 With 5 or more conflicted files and a harness with subagents, give each file to its own subagent. Its brief: the file's block from `context.sh`, the merge-base, the parent ref, and this file's sections 1 to 3. It reads, writes nothing, and returns:
