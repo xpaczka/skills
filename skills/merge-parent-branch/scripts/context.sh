@@ -2,7 +2,8 @@
 # Print merge context as key=value lines.
 # Usage: context.sh default     the current branch and the default branch
 #        context.sh parent      the parent-branch signals (PR base, reflog, nearest candidates) and a pick
-#        context.sh conflicts   per conflicted file of an in-progress merge: status, blobs, each side's commits
+#        context.sh conflicts   per conflicted file of an in-progress merge: status, blobs, each side's commits;
+#                               then the files that conflicted at merge time and are already resolved
 # One call replaces the many ref, history and blob lookups an agent would otherwise make.
 set -eu
 
@@ -154,23 +155,36 @@ commits() {
   echo "${out:-  none}"
 }
 
+# Prints the files git listed under "Conflicts:" in MERGE_MSG when the merge stopped, one per line.
+# Git 2.x comments the list out ("# Conflicts:", "#<tab>file"); older versions wrote it bare.
+merge_time_conflicts() {
+  awk '/^#? ?Conflicts:$/ { on = 1; next } on && /^#?\t/ { sub(/^#?\t/, ""); print; next } on { exit }' "$1"
+}
+
+# Prints <key>=<the number of lines in list>, 0 for an empty list.
+count() {
+  if [ -z "$2" ]; then echo "$1=0"; return; fi
+  echo "$1=$(printf '%s\n' "$2" | wc -l | tr -d ' ')"
+}
+
 conflicts() {
   git rev-parse -q --verify MERGE_HEAD > /dev/null || { echo "no merge in progress" >&2; exit 1; }
   ours=$(git rev-parse --short HEAD)
   theirs=$(git rev-parse --short MERGE_HEAD)
   base=$(git merge-base HEAD MERGE_HEAD)
+  msg=$(git rev-parse --git-path MERGE_MSG)
   files=$(git -c core.quotePath=false diff --name-only --diff-filter=U)
+  # Conflicted when the merge stopped, no longer unmerged: resolved and staged by an earlier run.
+  resolved=$(merge_time_conflicts "$msg" | while IFS= read -r file; do
+    printf '%s\n' "$files" | grep -qxF -- "$file" || echo "$file"
+  done)
 
   echo "merge_base=$(git rev-parse --short "$base")"
   echo "ours=$ours (HEAD, $(git branch --show-current))"
-  echo "theirs=$theirs ($(head -n 1 "$(git rev-parse --git-path MERGE_MSG)"))"
-  if [ -z "$files" ]; then
-    echo "conflicts=0"
-    return
-  fi
-  echo "conflicts=$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
+  echo "theirs=$theirs ($(head -n 1 "$msg"))"
+  count conflicts "$files"
 
-  printf '%s\n' "$files" | while IFS= read -r file; do
+  [ -z "$files" ] || printf '%s\n' "$files" | while IFS= read -r file; do
     status=$(git -c core.quotePath=false status --porcelain -- "$file" | cut -c1-2)
     echo
     echo "file=$file"
@@ -181,6 +195,10 @@ conflicts() {
     echo "theirs_commits:"
     commits "$base..MERGE_HEAD" "$file"
   done
+
+  echo
+  count resolved "$resolved"
+  [ -z "$resolved" ] || printf '%s\n' "$resolved" | sed 's/^/  /'
 }
 
 case "${1:-}" in

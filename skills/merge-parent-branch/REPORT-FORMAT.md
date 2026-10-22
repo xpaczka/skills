@@ -3,7 +3,7 @@
 The gate report: everything the user needs to say yes. Fill every section; a section with nothing to say gets one line saying so.
 
 ````md
-## Merge `origin/<parent>` into `<branch>`
+## Merge `<ref>` into `<branch>`
 
 **Sync**: `<parent>` fast-forwarded 3 commits to `origin/<parent>`; `<branch>` in sync with `origin/<branch>`.
 **Brings in**: 12 commits from `<parent>`, such as:
@@ -52,13 +52,13 @@ Reply **yes** to commit and push. Anything else keeps the merge in progress.
 After a fast-forward (the branch had no commits of its own), there is no merge commit and no conflict list; the gate is only for the push.
 
 ````md
-## Fast-forward `<branch>` to `origin/<parent>`
+## Fast-forward `<branch>` to `<ref>`
 
 **Sync**: `<parent>` in sync with `origin/<parent>`; `<branch>` in sync with `origin/<branch>`.
 **Brings in**: 4 commits from `<parent>`, such as:
 - `a1b2c3d` Fix rounding on discounted prices
 
-`<branch>` had no commits of its own, so it now points at `origin/<parent>` (`a1b2c3d`), with no merge commit.
+`<branch>` had no commits of its own, so it now points at `<ref>` (`a1b2c3d`), with no merge commit.
 
 ### Push
 
@@ -69,10 +69,10 @@ Reply **yes** to push. Anything else leaves the fast-forward local and unpushed.
 
 ## Commit message
 
-Git's standard merge subject, then the conflict list and the semantic fixes as the body; each section only when it has entries, so a clean merge with no fixes has no body:
+The subject is the first line of `$(git rev-parse --git-path MERGE_MSG)`: git's own merge subject, which already names the remote or local ref. Then the conflict list and the semantic fixes as the body; each section only when it has entries, so a clean merge with no fixes has no body:
 
 ```
-Merge remote-tracking branch 'origin/<parent>' into <branch>
+<the first line of MERGE_MSG>
 
 Conflicts resolved:
 - src/price.js: kept <parent>'s rounding fix inside the branch's extracted applyDiscount
@@ -81,5 +81,3 @@ Conflicts resolved:
 Semantic fixes:
 - src/receipt.js: call cartSubtotal, <parent>'s new name for subtotal
 ```
-
-Without a remote, the subject is `Merge branch '<parent>' into <branch>`.
