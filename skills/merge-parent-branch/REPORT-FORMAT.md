@@ -44,7 +44,8 @@ Reply **yes** to commit and push. Anything else keeps the merge in progress.
 - **Sync**: one clause each for the parent and the current branch: fast-forwarded N commits, in sync, or no upstream.
 - **Conflicts**: one bullet per conflicted file, with its rationale; add "Asked: yes" and the answer when the user decided it. A clean merge says "None: git merged every file."
 - **Semantic fixes**: one bullet per fix from the scan or a merge-caused check failure, with `file:line` and what changed on each side. None: "None: the branch's new code uses nothing the parent changed."
-- **Checks**: one bullet per check: pass, merge-caused and still failing after three fix attempts (list these first: the user weighs them at the gate), or pre-existing with the tip it fails on. Skipped checks say why.
+- **Checks**: one bullet per check: pass, **blocking** (merge-caused and still failing after three fix attempts, or unclassified after a declined install; list these first), or pre-existing with the tip it fails on. Skipped checks say why.
+- **Reply line**: with a blocking check, it reads instead: "Blocking: `<check>` still fails. Reply **commit anyway** to commit and push with it failing. Anything else keeps the merge in progress." A plain yes then gets the report again.
 - **Push**: `git push` with an upstream, `git push -u origin <branch>` without one, or "No remote: skipped".
 
 ## Fast-forward

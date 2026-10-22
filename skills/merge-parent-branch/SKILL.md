@@ -12,7 +12,7 @@ You merge the parent branch into the current branch end to end: sync both with t
 ## Hard rules
 
 - **History only grows.** The result is one standard two-parent merge commit, made at the gate, and a plain `git push`. Rebase, stash, reset and force-push are outside this skill; the user aborts the merge, or asks you to run `git merge --abort`.
-- **One gate.** Commit and push happen only after the user answers yes to the report. Questions before the gate are for real contradictions only.
+- **One gate.** Commit and push happen only after the user answers yes to the report. Before the gate, ask only these: to confirm a detected parent, how to proceed when a branch has diverged from its remote, how to resolve a conflict whose intents contradict or stay unclear, and once whether to run an install ([VERIFY.md](VERIFY.md#2-install)).
 - **Every intent survives.** A resolution keeps what each side meant (a fix, a feature, a refactor), and carries a one-line rationale into the report and the commit body.
 
 ## Run
@@ -30,7 +30,7 @@ You merge the parent branch into the current branch end to end: sync both with t
 8. **Resolve.** Run `scripts/context.sh conflicts` (in this skill's folder) before opening any file: its per-file history and blobs are the input to [RESOLVE.md](RESOLVE.md), which you then follow until every conflicted file is resolved and staged. Files it lists under `resolved` were resolved and staged by an earlier run: keep them as they are, and rebuild each one's rationale from `git diff HEAD -- <file>` and `git diff MERGE_HEAD -- <file>`.
 9. **Verify.** Clean or resolved, follow [VERIFY.md](VERIFY.md): the semantic scan, then the project's checks. Fixes for what the merge broke are staged into the same merge.
 10. **Gate.** Show the report in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md) (its fast-forward shape after step 6) and wait.
-    - **Yes**: commit with the report's message (`git commit -F <file>`; nothing to commit after a fast-forward), then push: `git push` with an upstream, `git push -u origin <branch>` without one, and no push without a remote. A rejected push stops: report git's message; the commit stays.
+    - **Yes** (**commit anyway** when the report lists a blocking check): commit with the report's message (`git commit -F <file>`; nothing to commit after a fast-forward), then push: `git push` with an upstream, `git push -u origin <branch>` without one, and no push without a remote. A rejected push stops: report git's message; the commit stays.
     - **Anything else**: apply the requested change, show the updated report, and wait again. The merge stays in progress (a fast-forward stays local).
 
 ## Environment capabilities

@@ -45,10 +45,10 @@ Statuses other than both-modified (`UU`):
 
 Never merge these by hand: a hand-merged lockfile describes a tree no tool produced.
 
-- **Lockfiles** (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `Cargo.lock`, `poetry.lock`, `uv.lock`, `Gemfile.lock`, `go.sum`): resolve the manifest (`package.json`, `Cargo.toml`, ...) first like any file. Then take the parent's lockfile (`git checkout --theirs -- <file>`) and regenerate it from the merged manifest with the project's tool (`npm install`, `pnpm install`, `cargo update --workspace`, `poetry lock --no-update`, `go mod tidy`, ...), so the branch's dependency changes are reapplied on top of the parent's. Ask once before running the install, then stage the result.
+- **Lockfiles** (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `Cargo.lock`, `poetry.lock`, `uv.lock`, `Gemfile.lock`, `go.sum`): resolve the manifest (`package.json`, `Cargo.toml`, ...) first like any file. Then take the parent's lockfile (`git checkout --theirs -- <file>`), stage it, and mark it for regeneration with the project's tool (`npm install`, `pnpm install`, `cargo update --workspace`, `poetry lock --no-update`, `go mod tidy`, ...): run from the merged manifest, it reapplies the branch's dependency changes on top of the parent's. [VERIFY.md](VERIFY.md#2-install) asks about it, together with any other install, and runs it.
 - **Generated files** (a `Code generated ... DO NOT EDIT` header, codegen output, checked-in build output): take the parent's version, rerun the generator the header or the project's scripts name, and stage the result.
 
-Declined install or no known generator: keep the parent's version staged and say in the report that the branch's changes to that file are missing until it is regenerated.
+Install declined or no known generator: keep the parent's version staged and say in the report that the branch's changes to that file are missing until it is regenerated.
 
 ## Parallel analysis
 
