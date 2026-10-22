@@ -4,12 +4,11 @@ Each conflicted file ends resolved, staged, and with a one-line rationale. Done 
 
 ## 1. Context
 
-Start from the output of `scripts/context.sh conflicts` (in this skill's folder; run it now if you have not): the merge-base, both tips, and per conflicted file git's conflict status, the base, ours and theirs blob IDs, and each side's commits since the merge-base that touched the file.
+Start from the output of `scripts/context.sh conflicts` (in this skill's folder; run it now if you have not): the merge-base, both tips, and per conflicted file git's conflict status, the base, ours and theirs blob IDs, and each side's commits since the merge-base that touched the file, each with its patch to that file.
 
 Then, per file:
 
 - **The three versions.** The markers in the working file carry all three (`zdiff3`: ours, `|||||||` base, `=======` theirs). For the whole file on one side: `git show :1:<file>` (base), `:2:` (ours, the current branch), `:3:` (theirs, the parent).
-- **Each side's changes**: `git log -p <merge-base>..HEAD -- <file>` and `git log -p <merge-base>..MERGE_HEAD -- <file>`.
 - **PRs**, when `gh` works: `gh pr list --state all --search <sha> --json number,title,body` for each listed commit; read what the PR says it fixes or adds.
 
 ## 2. Intent

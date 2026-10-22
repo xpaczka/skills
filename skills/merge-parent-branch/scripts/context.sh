@@ -2,7 +2,8 @@
 # Print merge context as key=value lines.
 # Usage: context.sh default     the current branch and the default branch
 #        context.sh parent      the parent-branch signals (PR base, reflog, nearest candidates) and a pick
-#        context.sh conflicts   per conflicted file of an in-progress merge: status, blobs, each side's commits;
+#        context.sh conflicts   per conflicted file of an in-progress merge: status, blobs, each side's commits
+#                               with their patch to the file;
 #                               then the files that conflicted at merge time and are already resolved
 # One call replaces the many ref, history and blob lookups an agent would otherwise make.
 set -eu
@@ -149,9 +150,10 @@ blob() {
   echo "${id:-none}"
 }
 
-# Prints the commits in <range> that touched <file>, one indented line each, or "  none".
+# Prints the commits in <range> that touched <file>, each an indented line followed by its patch limited
+# to <file>, or "  none".
 commits() {
-  out=$(git log --format='  %h %s' "$1" -- "$2")
+  out=$(git log -p --format='  %h %s' "$1" -- "$2")
   echo "${out:-  none}"
 }
 
