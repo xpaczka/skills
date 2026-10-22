@@ -1,0 +1,54 @@
+schema_version: "1.1"
+name: fix-vs-refactor
+description: develop's rounding fix and the branch's extract-function refactor conflict in one function; the merge keeps the refactored shape with the fix inside it, then stops at the approval gate.
+tags: [resolve, gate]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:merge-parent-branch develop"
+  max_turns: 40
+  timeout_seconds: 900
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: tool_used, name: no-commit, tool: Bash, input_match: "git commit", min: 0, max: 0 }
+  - { type: tool_used, name: no-push, tool: Bash, input_match: "git push", min: 0, max: 0 }
+  - { type: tool_used, name: no-stash, tool: Bash, input_match: "git stash", min: 0, max: 0 }
+  - { type: tool_used, name: no-rebase-or-reset, tool: Bash, input_match: "git (rebase|reset)", min: 0, max: 0 }
+  - { type: tool_used, name: no-abort, tool: Bash, input_match: "merge --abort", min: 0, max: 0 }
+  - { type: tool_used, name: merges-without-committing, tool: Bash, input_match: "merge --no-commit", min: 1 }
+  - { type: tool_used, name: reads-conflict-context, tool: Bash, input_match: "context\\.sh conflicts", min: 1 }
+  - { type: tool_used, name: stages-resolutions, tool: Bash, input_match: "git add", min: 1 }
+  - type: regex
+    name: merge-left-in-progress
+    target: { source: file, path: ".git/MERGE_HEAD" }
+    pattern: "[0-9a-f]{40}"
+  - type: regex
+    name: no-markers-in-pricing
+    target: { source: file, path: "src/pricing.mjs" }
+    pattern: "^(?![\\s\\S]*(?:^|\\n)(?:<{7}|\\|{7}|>{7}))"
+  - { type: regex, name: keeps-the-refactor, target: { source: file, path: src/pricing.mjs }, pattern: "export (const|function) discountCents" }
+  # discountCents is declared before finalPrice, so a fix between the two declarations sits in the helper.
+  - type: regex
+    name: helper-rounds
+    target: { source: file, path: src/pricing.mjs }
+    pattern: "(?:const|function) discountCents[\\s\\S]*?Math\\.round[\\s\\S]*?export (?:const|function) finalPrice"
+  - type: regex
+    name: helper-caps-at-100
+    target: { source: file, path: src/pricing.mjs }
+    pattern: "(?:const|function) discountCents[\\s\\S]*?(?:Math\\.min|>=? ?100)[\\s\\S]*?export (?:const|function) finalPrice"
+  - type: regex
+    name: final-price-uses-helper
+    target: { source: file, path: src/pricing.mjs }
+    pattern: "export (?:const|function) finalPrice[\\s\\S]*discountCents\\("
+  - { type: regex, name: report-header, pattern: "## Merge `origin/develop` into `feature/cart-savings`" }
+  - { type: regex, name: asks-for-yes, pattern: "Reply \\*\\*yes\\*\\*" }
+  - type: llm
+    name: gate-report
+    criteria: |
+      The final message is the approval report for merging origin/develop into feature/cart-savings. Pass if ALL hold:
+      - the Conflicts section lists src/pricing.mjs with a one-line rationale saying develop's fix (rounding and the 100% cap) was kept inside the branch's extracted discountCents;
+      - it shows a commit message whose subject is `Merge remote-tracking branch 'origin/develop' into feature/cart-savings`, with a body listing src/pricing.mjs and its resolution;
+      - the Push section names a plain `git push` (no force);
+      - it did not ask the user to choose a resolution (fix plus refactor resolves without a question);
+      - it does not claim to have committed or pushed.
