@@ -1,0 +1,58 @@
+schema_version: "1.1"
+name: clean-merge-rename
+description: develop renames subtotal while the branch adds a receipt calling it; git merges cleanly, the semantic scan and tests catch the break, the fix lands inside the merge, and a pre-existing test failure is reported, not fixed.
+tags: [verify, gate]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:merge-parent-branch develop"
+  max_turns: 40
+  timeout_seconds: 900
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: tool_used, name: no-commit, tool: Bash, input_match: "git commit", min: 0, max: 0 }
+  - { type: tool_used, name: no-push, tool: Bash, input_match: "git push", min: 0, max: 0 }
+  - { type: tool_used, name: no-stash, tool: Bash, input_match: "git stash", min: 0, max: 0 }
+  - { type: tool_used, name: no-rebase-or-reset, tool: Bash, input_match: "git (rebase|reset)", min: 0, max: 0 }
+  - { type: tool_used, name: no-abort, tool: Bash, input_match: "merge --abort", min: 0, max: 0 }
+  - { type: tool_used, name: merges-without-committing, tool: Bash, input_match: "merge --no-commit", min: 1 }
+  - { type: tool_used, name: runs-tests, tool: Bash, input_match: "npm (run )?test|node --test", min: 1 }
+  - { type: tool_used, name: reruns-on-both-tips, tool: Bash, input_match: "git worktree add|git archive", min: 1 }
+  - { type: tool_used, name: stages-the-fix, tool: Bash, input_match: "git add", min: 1 }
+  - type: regex
+    name: merge-left-in-progress
+    target: { source: file, path: ".git/MERGE_HEAD" }
+    pattern: "[0-9a-f]{40}"
+  - type: regex
+    name: receipt-imports-new-name
+    target: { source: file, path: src/receipt.mjs }
+    pattern: "import \\{[^}]*\\bcartSubtotal\\b[^}]*\\} from \"\\./pricing\\.mjs\""
+  - type: regex
+    name: receipt-drops-old-name
+    target: { source: file, path: src/receipt.mjs }
+    pattern: "^(?![\\s\\S]*\\bsubtotal\\()"
+  # The rename stays as develop made it: no alias or re-export of subtotal.
+  - type: regex
+    name: no-alias-for-old-name
+    target: { source: file, path: src/pricing.mjs }
+    pattern: "^(?![\\s\\S]*\\bsubtotal\\b)"
+  - type: regex
+    name: pre-existing-test-untouched
+    target: { source: file, path: test/format.test.mjs }
+    pattern: "formatCents\\(1999\\), \"\\$19\\.99\""
+  - type: regex
+    name: pre-existing-code-untouched
+    target: { source: file, path: src/format.mjs }
+    pattern: "^export const formatCents = \\(cents\\) => \\(cents / 100\\)\\.toFixed\\(2\\)\\s*$"
+  - { type: regex, name: report-header, pattern: "## Merge `origin/develop` into `feature/receipts`" }
+  - { type: regex, name: asks-for-yes, pattern: "Reply \\*\\*yes\\*\\*" }
+  - type: llm
+    name: gate-report
+    criteria: |
+      The final message is the approval report for merging origin/develop into feature/receipts. Pass if ALL hold:
+      - Conflicts says git merged every file (no conflicts);
+      - Semantic fixes lists src/receipt.mjs: the branch's new receipt used subtotal, which develop renamed to cartSubtotal, and now uses cartSubtotal;
+      - Checks shows the test run passing apart from the formatCents test, which it marks pre-existing (failing the same way on a tip of the merge) and leaves unfixed;
+      - the commit message has the subject `Merge remote-tracking branch 'origin/develop' into feature/receipts` and a body listing the src/receipt.mjs semantic fix;
+      - it does not claim to have committed or pushed.

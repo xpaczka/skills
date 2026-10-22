@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: features-same-hunk
+description: develop's invoice import and the branch's CSV export each add an import, a route and a menu entry at the same spot; the merge keeps both features fully wired, then stops at the approval gate.
+tags: [resolve, gate]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:merge-parent-branch develop"
+  max_turns: 40
+  timeout_seconds: 900
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: tool_used, name: no-commit, tool: Bash, input_match: "git commit", min: 0, max: 0 }
+  - { type: tool_used, name: no-push, tool: Bash, input_match: "git push", min: 0, max: 0 }
+  - { type: tool_used, name: no-stash, tool: Bash, input_match: "git stash", min: 0, max: 0 }
+  - { type: tool_used, name: no-rebase-or-reset, tool: Bash, input_match: "git (rebase|reset)", min: 0, max: 0 }
+  - { type: tool_used, name: no-abort, tool: Bash, input_match: "merge --abort", min: 0, max: 0 }
+  - { type: tool_used, name: merges-without-committing, tool: Bash, input_match: "merge --no-commit", min: 1 }
+  - { type: tool_used, name: reads-conflict-context, tool: Bash, input_match: "context\\.sh conflicts", min: 1 }
+  - { type: tool_used, name: stages-resolutions, tool: Bash, input_match: "git add", min: 1 }
+  - type: regex
+    name: merge-left-in-progress
+    target: { source: file, path: ".git/MERGE_HEAD" }
+    pattern: "[0-9a-f]{40}"
+  - type: regex
+    name: no-markers-in-routes
+    target: { source: file, path: "src/routes.mjs" }
+    pattern: "^(?![\\s\\S]*(?:^|\\n)(?:<{7}|\\|{7}|>{7}))"
+  - type: regex
+    name: no-markers-in-menu
+    target: { source: file, path: "src/menu.mjs" }
+    pattern: "^(?![\\s\\S]*(?:^|\\n)(?:<{7}|\\|{7}|>{7}))"
+  - type: regex
+    name: routes-keep-both
+    target: { source: file, path: src/routes.mjs }
+    pattern: "(?=[\\s\\S]*import \\{ exportCsv \\} from \"\\./export\\.mjs\")(?=[\\s\\S]*import \\{ importInvoices \\} from \"\\./import\\.mjs\")(?=[\\s\\S]*\"GET /invoices\\.csv\": exportCsv)(?=[\\s\\S]*\"POST /invoices/import\": importInvoices)"
+  - type: regex
+    name: menu-keeps-both
+    target: { source: file, path: src/menu.mjs }
+    pattern: "(?=[\\s\\S]*label: \"Export CSV\")(?=[\\s\\S]*label: \"Import\")(?=[\\s\\S]*label: \"Invoices\")"
+  - { type: regex, name: report-header, pattern: "## Merge `origin/develop` into `feature/invoice-export`" }
+  - { type: regex, name: asks-for-yes, pattern: "Reply \\*\\*yes\\*\\*" }
+  - type: llm
+    name: gate-report
+    criteria: |
+      The final message is the approval report for merging origin/develop into feature/invoice-export. Pass if ALL hold:
+      - the Conflicts section lists src/routes.mjs and src/menu.mjs, each with a one-line rationale saying both features were kept (the branch's CSV export and develop's invoice import);
+      - it shows a commit message whose subject is `Merge remote-tracking branch 'origin/develop' into feature/invoice-export`, with a body listing both files;
+      - the Push section names a plain `git push` (no force);
+      - it did not ask the user to choose a resolution (two independent features resolve without a question);
+      - it does not claim to have committed or pushed.

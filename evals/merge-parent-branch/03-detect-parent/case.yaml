@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: detect-parent
+description: Without an argument, the skill detects develop as the parent from the reflog (main, develop and release/1.0 tie on distance), shows the evidence and waits for a yes before merging.
+tags: [detect]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:merge-parent-branch"
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
+graders:
+  - { type: tool_used, name: reads-parent-signals, tool: Bash, input_match: "context\\.sh parent", min: 1 }
+  - { type: tool_used, name: no-merge-before-yes, tool: Bash, input_match: "git (-c \\S+ )*merge( |$)", min: 0, max: 0 }
+  - { type: tool_used, name: no-commit, tool: Bash, input_match: "git commit", min: 0, max: 0 }
+  - { type: tool_used, name: no-push, tool: Bash, input_match: "git push", min: 0, max: 0 }
+  - { type: tool_used, name: no-stash, tool: Bash, input_match: "git stash", min: 0, max: 0 }
+  - { type: tool_used, name: no-rebase-or-reset, tool: Bash, input_match: "git (rebase|reset)", min: 0, max: 0 }
+  - { type: regex, name: names-develop, pattern: "Parent: `develop`" }
+  - { type: regex, name: asks-for-yes, pattern: "Reply \\*\\*yes\\*\\*" }
+  - type: llm
+    name: confirmation
+    criteria: |
+      The final message proposes develop as the parent of feature/gift-card-expiry and waits for confirmation. Pass if ALL hold:
+      - it names develop as the parent and cites the reflog (the branch was created from, or first switched to from, develop) as evidence;
+      - it gives the distance evidence (one commit of the branch past the merge-base, and what develop would bring in), or says main and release/1.0 are equally near;
+      - it asks the user to reply yes or name another branch before merging `origin/develop` into feature/gift-card-expiry;
+      - it does not claim to have merged, committed or pushed anything.

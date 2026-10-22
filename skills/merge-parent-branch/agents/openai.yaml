@@ -1,0 +1,5 @@
+interface:
+  display_name: "Merge Parent Branch"
+  short_description: "Merge the parent branch in, keeping both sides' fixes and features"
+policy:
+  allow_implicit_invocation: false

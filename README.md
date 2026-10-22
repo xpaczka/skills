@@ -6,6 +6,7 @@ Agent-agnostic [Agent Skills](https://agentskills.io) (`SKILL.md` format) for a 
 
 | Skill | Invocation | Description |
 | --- | --- | --- |
+| [merge&#8209;parent&#8209;branch](skills/merge-parent-branch/SKILL.md) | User | Merge the parent branch into the current one: sync both with the remote, resolve conflicts so neither side's fix or feature is lost, then commit and push after one approval. |
 | [ship](skills/ship/SKILL.md) | User | Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo. |
 | [web&#8209;ready&#8209;audit](skills/web-ready-audit/SKILL.md) | User | Audit a website or web app before launch, on any stack: what is missing or misconfigured, as Blocker, Should fix and Nice to have findings. Report only, never edits. |
 
