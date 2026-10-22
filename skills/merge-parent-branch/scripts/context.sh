@@ -1,15 +1,21 @@
 #!/bin/sh
 # Print merge context as key=value lines.
-# Usage: context.sh parent      the parent-branch signals (PR base, reflog, nearest candidates) and a pick
+# Usage: context.sh default     the current branch and the default branch
+#        context.sh parent      the parent-branch signals (PR base, reflog, nearest candidates) and a pick
 #        context.sh conflicts   per conflicted file of an in-progress merge: status, blobs, each side's commits
 # One call replaces the many ref, history and blob lookups an agent would otherwise make.
 set -eu
 
-usage() { echo "usage: context.sh parent|conflicts" >&2; exit 2; }
+usage() { echo "usage: context.sh default|parent|conflicts" >&2; exit 2; }
 
 # Prints <ref> as a branch name: without refs/heads/, refs/remotes/origin/ or origin/.
 short() {
   echo "$1" | sed -e 's#^refs/heads/##' -e 's#^refs/remotes/##' -e 's#^origin/##'
+}
+
+# Sets space to where branches live: origin's remote-tracking refs, or the local heads without a remote.
+set_space() {
+  if git remote get-url origin > /dev/null 2>&1; then space=refs/remotes/origin; else space=refs/heads; fi
 }
 
 # Prints the default branch with its source, or "none": the remote's when there is one, else the local one.
@@ -98,19 +104,26 @@ pick() {
   fi
 }
 
-parent() {
+# Sets branch to the current branch; a detached HEAD has none.
+set_branch() {
   branch=$(git branch --show-current)
   [ -n "$branch" ] || { echo "detached HEAD" >&2; exit 1; }
+}
+
+default() {
+  set_branch
+  set_space
+  echo "branch=$branch"
+  echo "default=$(default_branch)"
+}
+
+parent() {
+  set_branch
   # Without an upstream, rev-parse still prints the literal "@{u}" before failing.
   upstream=$(git rev-parse -q --abbrev-ref --symbolic-full-name '@{u}' 2> /dev/null) || upstream=
   own_upstream=$(short "$upstream")
-  if git remote get-url origin > /dev/null 2>&1; then
-    space=refs/remotes/origin
-    pr=$(pr_base)
-  else
-    space=refs/heads
-    pr="none (no remote)"
-  fi
+  set_space
+  if [ "$space" = refs/remotes/origin ]; then pr=$(pr_base); else pr="none (no remote)"; fi
   default=$(default_branch)
   default_name=$(echo "$default" | awk '$1 != "none" { print $1 }')
   reflog=$(reflog_parent "$branch")
@@ -171,6 +184,7 @@ conflicts() {
 }
 
 case "${1:-}" in
+  default) default ;;
   parent) parent ;;
   conflicts) conflicts ;;
   *) usage ;;

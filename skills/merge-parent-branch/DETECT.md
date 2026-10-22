@@ -1,6 +1,6 @@
 # Detect the parent
 
-Runs when no argument names the parent. Done when the user has confirmed one branch, or the run has stopped on the default branch.
+Runs when no argument names the parent, after SKILL.md has ruled out the default branch. Done when the user has confirmed one branch.
 
 ## 1. Signals
 
@@ -12,11 +12,7 @@ Run `scripts/context.sh parent` (in this skill's folder) once, after the fetch. 
 - `candidates`: up to 10 branches this one could have been cut from, nearest first. `own` counts this branch's commits past the merge-base with the candidate, `brings` the candidate's commits that the merge would bring in. A branch that already contains this one (a branch stacked on it, an integration branch that merged it) is left out unless the PR base or reflog names it. Topology only: branches cut at the same commit tie, and tied candidates come in the order default, `develop`, `release/*`, others, then the one that brings more.
 - `pick`: the one branch every available signal agrees on, or `none` with the reason (PR base and reflog disagree, the named branch is not among the nearest, the nearest tie).
 
-## 2. Default branch
-
-If `branch` is the `default` branch, print "`<branch>` is the default branch: there is no parent to merge into it." and stop. Nothing has changed.
-
-## 3. Confirm or ask
+## 2. Confirm or ask
 
 **`pick=<name>`**: show the pick in this shape, with each signal as evidence, and wait. The `Parent:` line and the reply line stay word for word: they are what the user scans for.
 
