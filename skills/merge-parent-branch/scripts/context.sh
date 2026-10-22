@@ -12,14 +12,19 @@ short() {
   echo "$1" | sed -e 's#^refs/heads/##' -e 's#^refs/remotes/##' -e 's#^origin/##'
 }
 
-# Prints the remote's default branch with its source, or "none".
+# Prints the default branch with its source, or "none": the remote's when there is one, else the local one.
 default_branch() {
-  ref=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2> /dev/null || true)
-  [ -n "$ref" ] && { echo "$(short "$ref") (origin/HEAD)"; return; }
-  ref=$(git ls-remote --symref origin HEAD 2> /dev/null | awk '$1 == "ref:" { print $2; exit }')
-  [ -n "$ref" ] && { echo "$(short "$ref") (ls-remote)"; return; }
+  if [ "$space" = refs/remotes/origin ]; then
+    ref=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2> /dev/null || true)
+    [ -n "$ref" ] && { echo "$(short "$ref") (origin/HEAD)"; return; }
+    ref=$(git ls-remote --symref origin HEAD 2> /dev/null | awk '$1 == "ref:" { print $2; exit }')
+    [ -n "$ref" ] && { echo "$(short "$ref") (ls-remote)"; return; }
+  else
+    name=$(git config init.defaultBranch || true)
+    [ -n "$name" ] && git rev-parse -q --verify "refs/heads/$name" > /dev/null && { echo "$name (init.defaultBranch)"; return; }
+  fi
   for name in main master; do
-    git rev-parse -q --verify "refs/remotes/origin/$name" > /dev/null && { echo "$name (guess)"; return; }
+    git rev-parse -q --verify "$space/$name" > /dev/null && { echo "$name (guess)"; return; }
   done
   echo none
 }
@@ -52,58 +57,76 @@ reflog_parent() {
   echo "$from ($evidence)"
 }
 
+# Prints the branches this one could have been cut from, nearest first, as "<own> <brings> <name>" lines.
+# own: commits on HEAD the candidate lacks (fewer is nearer); brings: commits the merge would bring in.
+# A branch that already contains HEAD (a stacked child, an integration branch that merged this one) is
+# no parent, unless the PR base or reflog names it: that is a branch with no own commits to fast-forward.
+# Ties go to default, develop, release/*, then others, and then to the one that brings more.
+candidates() {
+  {
+    git for-each-ref --no-contains=HEAD --sort=-committerdate --count=200 --format='%(refname)' "$space"
+    for name in $named; do
+      git merge-base --is-ancestor HEAD "$space/$name" 2> /dev/null && echo "$space/$name"
+    done
+  } | while IFS= read -r ref; do
+    name=$(short "$ref")
+    if [ "$name" = HEAD ] || [ "$name" = "$branch" ] || [ "$name" = "$own_upstream" ]; then continue; fi
+    case $name in
+      "$default_name") rank=0 ;;
+      develop) rank=1 ;;
+      release/*) rank=2 ;;
+      *) rank=3 ;;
+    esac
+    echo "$(git rev-list --left-right --count "HEAD...$ref" | tr '\t' ' ') $rank $name"
+  done | sort -k1,1n -k3,3n -k2,2nr | cut -d ' ' -f 1,2,4
+}
+
+# Prints the one branch every signal agrees on, or "none (<why>)".
+pick() {
+  nearest=$(echo "$candidates" | awk 'NR == 1 { min = $1 } $1 == min && NF { print $3 }')
+  if [ -n "$pr_name" ] && [ -n "$reflog_name" ] && [ "$pr_name" != "$reflog_name" ]; then
+    echo "none (PR base and reflog disagree)"
+  elif [ -n "$named" ]; then
+    if echo "$nearest" | grep -qxF "$named"; then echo "$named"
+    else echo "none ($named is not among the nearest candidates)"; fi
+  elif [ -z "$nearest" ]; then
+    echo "none (no candidate branches)"
+  elif [ "$(echo "$nearest" | wc -l | tr -d ' ')" -eq 1 ]; then
+    echo "$nearest"
+  else
+    echo "none (nearest candidates tie: $(echo "$nearest" | tr '\n' ' ' | sed 's/ $//'))"
+  fi
+}
+
 parent() {
   branch=$(git branch --show-current)
   [ -n "$branch" ] || { echo "detached HEAD" >&2; exit 1; }
-  upstream=$(git rev-parse -q --abbrev-ref --symbolic-full-name '@{u}' 2> /dev/null || true)
+  # Without an upstream, rev-parse still prints the literal "@{u}" before failing.
+  upstream=$(git rev-parse -q --abbrev-ref --symbolic-full-name '@{u}' 2> /dev/null) || upstream=
+  own_upstream=$(short "$upstream")
   if git remote get-url origin > /dev/null 2>&1; then
     space=refs/remotes/origin
-    default=$(default_branch)
     pr=$(pr_base)
   else
     space=refs/heads
-    default="none (no remote)"
     pr="none (no remote)"
   fi
+  default=$(default_branch)
+  default_name=$(echo "$default" | awk '$1 != "none" { print $1 }')
   reflog=$(reflog_parent "$branch")
-
-  # own: commits on HEAD past the merge-base (fewer is nearer); brings: commits the candidate would merge in.
-  # Ties go to the candidate that brings more. The 200 most recently updated branches are enough.
-  own_upstream=$(short "$upstream")
-  candidates=$(git for-each-ref --sort=-committerdate --count=200 --format='%(refname)' "$space" |
-    while IFS= read -r ref; do
-      name=$(short "$ref")
-      if [ "$name" = HEAD ] || [ "$name" = "$branch" ] || [ "$name" = "$own_upstream" ]; then continue; fi
-      base=$(git merge-base HEAD "$ref" 2> /dev/null) || continue
-      echo "$(git rev-list --count "$base..HEAD") $(git rev-list --count "HEAD..$ref") $name $(git rev-parse --short "$base")"
-    done | sort -k1,1n -k2,2nr)
-  nearest=$(echo "$candidates" | awk 'NR == 1 { min = $1 } $1 == min && NF { print $3 }')
-
-  # The pick is the one branch every signal agrees on; otherwise "none" with the reason.
   pr_name=$(echo "$pr" | awk '$1 != "none" { print $1 }')
   reflog_name=$(echo "$reflog" | awk '$1 != "none" { print $1 }')
   named=${pr_name:-$reflog_name}
-  if [ -n "$pr_name" ] && [ -n "$reflog_name" ] && [ "$pr_name" != "$reflog_name" ]; then
-    pick="none (PR base and reflog disagree)"
-  elif [ -n "$named" ]; then
-    if echo "$nearest" | grep -qxF "$named"; then pick=$named
-    else pick="none ($named is not among the nearest candidates)"; fi
-  elif [ -z "$nearest" ]; then
-    pick="none (no candidate branches)"
-  elif [ "$(echo "$nearest" | wc -l | tr -d ' ')" -eq 1 ]; then
-    pick=$nearest
-  else
-    pick="none (nearest candidates tie: $(echo "$nearest" | tr '\n' ' ' | sed 's/ $//'))"
-  fi
+  candidates=$(candidates)
 
   echo "branch=$branch"
   echo "upstream=${upstream:-none}"
   echo "default=$default"
   echo "pr_base=$pr"
   echo "reflog=$reflog"
-  echo "candidates: (own = commits on $branch past the merge-base; brings = commits it would merge in)"
-  echo "${candidates:-none}" | head -n 10 | awk '$1 ~ /^[0-9]+$/ { printf "  %s own=%s brings=%s base=%s\n", $3, $1, $2, $4; next } { print "  " $0 }'
-  echo "pick=$pick"
+  echo "candidates: (own = commits on $branch the candidate lacks; brings = commits it would merge in)"
+  echo "${candidates:-none}" | head -n 10 | awk '$1 ~ /^[0-9]+$/ { printf "  %s own=%s brings=%s\n", $3, $1, $2; next } { print "  " $0 }'
+  echo "pick=$(pick)"
 }
 
 # Prints the blob ID of <file> at index <stage> (1 base, 2 ours, 3 theirs), or "none".
