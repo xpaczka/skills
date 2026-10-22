@@ -17,17 +17,20 @@ You merge the parent branch into the current branch end to end: sync both with t
 
 ## Run
 
-1. **Resume.** If `git rev-parse -q --verify MERGE_HEAD` succeeds, a merge is in progress: the parent is the ref named on the first line of `$(git rev-parse --git-path MERGE_MSG)`. Go to step 5 with the files `git diff --name-only --diff-filter=U` still lists; with none left, go to step 6.
+1. **Resume.** If `git rev-parse -q --verify MERGE_HEAD` succeeds, a merge is in progress: the parent is the ref named on the first line of `$(git rev-parse --git-path MERGE_MSG)`. Go to step 6 with the files `git diff --name-only --diff-filter=U` still lists; with none left, go to step 7.
 2. **Clean tree.** `git status --porcelain --untracked-files=no` must be empty. Otherwise list those files, ask the user to commit or discard them, and stop. Untracked files stay as they are; git itself refuses a merge that would overwrite one. A detached HEAD also stops here: name it and ask for a branch.
-3. **Parent.** The argument names the parent branch. Without one, ask for it.
-4. **Sync.** Run `git fetch origin`; done when both comparisons below are settled.
+3. **Parent.** Run `git fetch origin` (skip it without a remote). The argument names the parent branch; without one, follow [DETECT.md](DETECT.md) until the user confirms a parent.
+4. **Sync.** Done when both comparisons below are settled.
    - **Parent**: count `git rev-list --left-right --count <parent>...origin/<parent>` (left is local only, right is remote only). Behind only: `git fetch origin <parent>:<parent>`. Ahead or diverged: stop, list the commits on each side, and ask how to proceed. No local `<parent>` branch: nothing to sync.
    - **Current branch**: the same count for `HEAD...@{u}`. Behind only: `git merge --ff-only @{u}`. Ahead only: fine, the push at the gate sends those commits. Diverged: stop, list each side's commits, ask. No upstream: nothing to sync.
-   - **No remote at all**: skip the fetch, merge the local `<parent>`, and the gate skips the push.
-5. **Merge.** Run `git -c merge.conflictStyle=zdiff3 merge --no-commit --no-ff origin/<parent>` (the local `<parent>` without a remote). Both flags matter: the merge always pauses before committing, so nothing lands before the gate. With conflicts, follow [RESOLVE.md](RESOLVE.md) until every conflicted file is resolved and staged.
-6. **Gate.** Show the report in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md) and wait.
-   - **Yes**: commit with the report's message (`git commit -F <file>`), then push: `git push` with an upstream, `git push -u origin <branch>` without one. A rejected push stops: report git's message; the commit stays.
-   - **Anything else**: apply the requested change, show the updated report, and wait again. The merge stays in progress.
+   - **No remote at all**: nothing to sync; merge the local `<parent>`, and the gate skips the push.
+5. **Nothing to merge?** With `<ref>` as `origin/<parent>` (the local `<parent>` without a remote):
+   - `git merge-base --is-ancestor <ref> HEAD` succeeds: print "Already up to date with `<ref>`." and stop.
+   - `git merge-base --is-ancestor HEAD <ref>` succeeds: the branch has no commits of its own. Run `git merge --ff-only <ref>` (no merge commit) and go to step 7.
+6. **Merge.** Run `git -c merge.conflictStyle=zdiff3 merge --no-commit --no-ff origin/<parent>` (the local `<parent>` without a remote). Both flags matter: the merge always pauses before committing, so nothing lands before the gate. With conflicts, run `scripts/context.sh conflicts` (in this skill's folder) before opening any file: its per-file history and blobs are the input to [RESOLVE.md](RESOLVE.md), which you then follow until every conflicted file is resolved and staged.
+7. **Gate.** Show the report in the shape of [REPORT-FORMAT.md](REPORT-FORMAT.md) (its fast-forward shape after step 5) and wait.
+   - **Yes**: commit with the report's message (`git commit -F <file>`; nothing to commit after a fast-forward), then push: `git push` with an upstream, `git push -u origin <branch>` without one. A rejected push stops: report git's message; the commit stays.
+   - **Anything else**: apply the requested change, show the updated report, and wait again. The merge stays in progress (a fast-forward stays local).
 
 ## Environment capabilities
 

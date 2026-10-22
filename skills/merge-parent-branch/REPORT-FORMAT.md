@@ -33,6 +33,26 @@ Reply **yes** to commit and push. Anything else keeps the merge in progress.
 - **Conflicts**: one bullet per conflicted file, with its rationale; add "Asked: yes" and the answer when the user decided it. A clean merge says "None: git merged every file."
 - **Push**: `git push` with an upstream, `git push -u origin <branch>` without one, or "No remote: skipped".
 
+## Fast-forward
+
+After a fast-forward (the branch had no commits of its own), there is no merge commit and no conflict list; the gate is only for the push.
+
+````md
+## Fast-forward `<branch>` to `origin/<parent>`
+
+**Sync**: `<parent>` in sync with `origin/<parent>`; `<branch>` in sync with `origin/<branch>`.
+**Brings in**: 4 commits from `<parent>`, such as:
+- `a1b2c3d` Fix rounding on discounted prices
+
+`<branch>` had no commits of its own, so it now points at `origin/<parent>` (`a1b2c3d`), with no merge commit.
+
+### Push
+
+`git push` to `origin/<branch>`.
+
+Reply **yes** to push. Anything else leaves the fast-forward local and unpushed.
+````
+
 ## Commit message
 
 Git's standard merge subject, then the conflict list as the body (a clean merge has no body):

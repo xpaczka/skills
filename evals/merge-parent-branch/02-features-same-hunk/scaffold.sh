@@ -14,19 +14,20 @@ start_repo() {
 JSON
 }
 
-# publish_base <subject> <feature>: commits the base, then cuts develop (the parent) and the feature
-# branch from it, all pushed to a bare origin inside .git/ (which keeps it out of git status).
-# Leaves you on develop.
+# publish_base <subject> <feature>: commits the base on main, cuts develop (the parent) from main and
+# the feature branch from develop, so the feature's reflog records develop. All three are pushed to a
+# bare origin inside .git/ (which keeps it out of git status). Leaves you on develop.
 publish_base() {
   git add -A
   git commit -qm "$1"
-  git init -q --bare .git/eval-origin.git
+  git init -q --bare -b main .git/eval-origin.git
   git remote add origin "$PWD/.git/eval-origin.git"
   git push -q -u origin main
-  for branch in "$2" develop; do
+  for branch in develop "$2"; do
     git switch -q -c "$branch"
     git push -q -u origin "$branch"
   done
+  git switch -q develop
 }
 
 # save <subject>: commits everything on the current branch and pushes it.

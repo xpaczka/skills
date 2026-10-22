@@ -4,7 +4,7 @@ Each conflicted file ends resolved, staged, and with a one-line rationale. Done 
 
 ## 1. Context
 
-Run `scripts/context.sh conflicts` (in this skill's folder) once. It prints the merge-base, both tips, and per conflicted file: git's conflict status, the base, ours and theirs blob IDs, and each side's commits since the merge-base that touched the file.
+Start from the output of `scripts/context.sh conflicts` (in this skill's folder; run it now if you have not): the merge-base, both tips, and per conflicted file git's conflict status, the base, ours and theirs blob IDs, and each side's commits since the merge-base that touched the file.
 
 Then, per file:
 
