@@ -19,6 +19,13 @@ npx skills add xpaczka/skills -s <name> -g -a claude-code -a cursor
 npx skills update -g          # pull the latest version
 ```
 
+Or as a Claude Code plugin, with every skill namespaced (`/skills:ship`; the bare `/ship` still works unless a project defines its own `ship`):
+
+```sh
+/plugin marketplace add xpaczka/skills
+/plugin install skills@xpaczka
+```
+
 ### Claude Code permissions for `ship`
 
 `ship` keeps its state outside the repo, in `~/.agents/ship/`. To stop Claude Code from asking on every call, allow exactly that folder and ship's two scripts in `~/.claude/settings.json` (use your absolute home path where shown):

@@ -1,0 +1,16 @@
+{
+  "name": "xpaczka",
+  "owner": {
+    "name": "Michał Paczyński"
+  },
+  "metadata": {
+    "description": "xpaczka/skills as one Claude Code plugin."
+  },
+  "plugins": [
+    {
+      "name": "skills",
+      "source": "./",
+      "description": "Agent-agnostic skills for a controlled, chunked development workflow."
+    }
+  ]
+}
