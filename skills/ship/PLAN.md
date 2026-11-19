@@ -21,6 +21,7 @@ If exploring reveals a decision the state does not settle, never guess it silent
 - fills every field of a chunk in [STATE-FORMAT.md](STATE-FORMAT.md):
   - `acceptance`: the exact commands that prove the chunk works;
   - `tdd`: `yes` for logic with rules, branches, parsing or state, listing the **seams** (the public functions or endpoints the tests drive); `no` with a reason for wiring, UI and config;
+  - `depends_on`: the chunks that must be committed first, `[]` when none. Two chunks that edit the same file depend on each other, so a parallel wave never conflicts on purpose;
   - `commit_message`: in `config.commit_style`; with `conventional`, use the feature ID as the scope.
 
 ## 3. Approve
@@ -33,6 +34,7 @@ Present the approach, then every chunk in this shape, every field filled (no sum
 - files: …
 - acceptance: `…`
 - tdd: yes (seams: …) | no (<reason>)
+- depends_on: [] | [N, …]
 - commit: `…`
 ```
 

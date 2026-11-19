@@ -11,7 +11,7 @@ You drive one feature through fixed phases in one thread, stopping for the user 
 
 ## Hard rules
 
-- **Commits happen only on the user's word.** The user commits, answers 'Commit & …' at a chunk handoff, runs `/ship next`, or chose `review` or `auto` autonomy, which lets you commit each green chunk; those are the only times you run `git add` and `git commit`. Never run `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, `checkout` of files, or a commit with `--no-verify`. `git switch -c` or `git worktree add -b` for a new feature branch is allowed. The only push is the one `/ship pr` makes.
+- **Commits happen only on the user's word.** The user commits, answers 'Commit & …' at a chunk handoff, runs `/ship next`, or chose `review` or `auto` autonomy, which lets you commit each green chunk; those are the only times you run `git add` and `git commit`. Never run `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, `checkout` of files, or a commit with `--no-verify`. `git switch -c` or `git worktree add -b` for a new feature branch is allowed, and so are the parallel wave's own commands: `git worktree add --detach` and `git worktree remove` under `SHIP_HOME/repos/<key>/worktrees/`, `git merge-tree`, and `git cherry-pick --no-commit`. The only push is the one `/ship pr` makes.
 - **Nothing ship writes lands in the repo.** Every ship file goes under `SHIP_HOME`.
 - **Tracker writes only when the state's `tracker_writes` allows them**, and preview each one before sending.
 - **Stop where the autonomy level says** (below), and always at the stops every level shares.
@@ -85,7 +85,7 @@ On every phase change, set `phase` in the state frontmatter.
 | If the harness has… | do | else |
 |---|---|---|
 | a plan mode | enter it for planning; approve through its UI | write the plan to the state file; approve in chat |
-| subagents | implement every chunk in a fresh subagent; run reviewers in subagents | run them inline, each starting from only its brief |
+| subagents | implement every chunk in a fresh subagent, independent chunks in parallel waves; run reviewers in subagents | run them inline, each starting from only its brief |
 | a worktree tool | enter a new feature's worktree with it | ask the user to open a session in the worktree |
 | per-subagent reasoning effort | set it as the review phase says | skip it |
 | a structured question UI | use it for multiple-choice questions and every stop | numbered plain-text questions, plus the command to type |

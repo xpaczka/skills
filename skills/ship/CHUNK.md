@@ -10,9 +10,14 @@ If a chunk has `status: handed-off`:
 2. **Clean tree, HEAD moved**: the user committed.
 3. **Clean tree, HEAD unchanged**: the chunk's changes are gone. Ask: redo it, skip it, or amend the plan.
 
-After 1 or 2, set the chunk's `commit` to HEAD's short SHA and `status: committed`, and save the state file.
+After 1 or 2, set the chunk's `commit` to HEAD's short SHA and `status: committed`, and save the state file; if it came from a parallel wave, remove its worktree (2b, step 4).
 
-Then take the lowest-numbered `pending` chunk to step 2. If none is left:
+Then pick what runs next:
+
+- a chunk from a parallel wave is waiting (`in-progress`, its worktree from step 2b exists) → integrate it (2b, step 3);
+- otherwise the **ready** chunks are the `pending` ones whose `depends_on` chunks are all committed. Two or more ready, and the harness has subagents → run a wave (2b). Otherwise take the lowest-numbered ready chunk to step 2.
+
+If no chunk is `pending` or `in-progress`:
 
 - `review_rounds` is 0 → set `phase: reviewing` and continue with [REVIEW.md](REVIEW.md) in the same turn.
 - otherwise (these were review fixes), under `auto` → after round 1, set `phase: reviewing` and continue with [REVIEW.md](REVIEW.md) for round 2; after round 2, set `phase: finishing` and continue with [FINISH.md](FINISH.md).
@@ -31,6 +36,15 @@ Set the chunk `status: in-progress`. Brief one fresh subagent for it, review-fix
 - report back: what changed and why, deviations, the risky spots as `path:line`, and the check results.
 
 Without subagents, do the same inline, starting from only that brief.
+
+## 2b. Parallel wave
+
+1. Take up to 3 ready chunks, lowest-numbered first, and set each `in-progress`. For each, run `git worktree add --detach SHIP_HOME/repos/<key>/worktrees/<state file name>-chunk-<N> HEAD` and install dependencies there with the lockfile's package manager.
+2. Brief one subagent per chunk at once, as in step 2, with two differences: it works only inside its worktree, and once green it commits the chunk there with its `commit_message`. That commit never touches the feature branch.
+3. Integrate in chunk order, one chunk at a time, after its subagent returns. Take `<sha>` = the worktree's HEAD; uncommitted changes there mean the subagent did not finish, so treat it as a conflict.
+   - Check for a conflict first: `git merge-tree --write-tree --merge-base <sha>^ HEAD <sha>` exits 1 on one (git 2.40 or later, for `--merge-base`). On a conflict, remove the worktree, set the chunk back to `pending`, and it runs again later in a fresh subagent on top of the branch.
+   - Otherwise `git cherry-pick --no-commit <sha>` puts the chunk in the working tree. Continue with step 4, then step 5, as for any chunk.
+4. Once the chunk is committed, run `git worktree remove --force <path>` (the folder holds only ship's integrated copy and installed dependencies).
 
 ## 3. Deviations
 

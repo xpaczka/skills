@@ -42,6 +42,7 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 - files: `src/invoices/csv.ts`, `src/invoices/csv.test.ts`
 - acceptance: `<checks.test> src/invoices`
 - tdd: yes (seams: `toCsv(invoices)`)
+- depends_on: []                  # chunks that must be committed first; ready chunks run in parallel
 - commit_message: `feat(ABC-123): serialize invoices to CSV`
 - commit:                        # short SHA, filled when the chunk is committed
 
