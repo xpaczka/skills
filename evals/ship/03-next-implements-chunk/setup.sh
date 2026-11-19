@@ -16,7 +16,6 @@ Pure serializer first, then dates, then a CLI command. Every chunk runs \`node -
 - files: \`src/csv.mjs\`, \`test/csv.test.mjs\`
 - acceptance: \`node --test\`
 - tdd: no (small pure function; tests written alongside)
-- executor: main (core logic the user will read closely)
 - commit_message: \`feat(ABC-123): serialize invoice lines to CSV\`
 
 ### 2. Locale-aware dates

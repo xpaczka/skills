@@ -17,7 +17,7 @@ graders:
   - { type: regex, name: uses-feature-scope, pattern: "feat\\(ABC-123\\)" }
   - type: llm
     name: chunks-complete
-    criteria: The final message contains a draft plan of 2–5 chunks, and every chunk shows files, an exact acceptance command, a tdd yes/no (with seams when yes), an executor with a reason, and a commit message scoped to ABC-123. Open questions listed alongside the draft are fine.
+    criteria: The final message contains a draft plan of 2–5 chunks, and every chunk shows files, an exact acceptance command, a tdd yes/no (with seams when yes), and a commit message scoped to ABC-123. Open questions listed alongside the draft are fine.
   - type: llm
     name: chunks-vertical-and-green
     criteria: Each chunk is a vertical slice that could be committed on its own with `node --test` passing and its own tests included; the plan is not layered as "all helpers first, then all logic, then the CLI".

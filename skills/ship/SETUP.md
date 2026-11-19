@@ -26,13 +26,14 @@ Show the detected facts as one compact block, then ask in a single round (struct
 
 1. **PR default**: `draft` or `ready`. Recommend the global value, or `draft` if there is none.
 2. **Default tracker writes**: `none`, `comment`, or `comment+status`. Recommend the global value, or `none`. Skip when `tracker.kind` is `none`.
-3. **Corrections**: "Is any detected fact wrong?" Apply what the user corrects.
-4. Only when `SHIP_HOME/config.yml` does not exist: **save answers 1–2 as global defaults** for future repos? Recommend yes.
+3. **Default autonomy**: `chunk`, `review`, or `auto`, as the SKILL.md Autonomy table describes them. Recommend the global value, or `review`.
+4. **Corrections**: "Is any detected fact wrong?" Apply what the user corrects.
+5. Only when `SHIP_HOME/config.yml` does not exist: **save answers 1–3 as global defaults** for future repos? Recommend yes.
 
 ## 3. Write
 
 - Write `SHIP_HOME/repos/<key>/config.yml` from the YAML block in [CONFIG-FORMAT.md](CONFIG-FORMAT.md), comments included, every key filled.
-- If the user agreed in question 4, write `SHIP_HOME/config.yml` with the decision keys only.
+- If the user agreed in question 5, write `SHIP_HOME/config.yml` with the decision keys only.
 - Print one line: where the config is, and how to change it (`/ship setup`).
 
 Done when the repo config exists with every key. Then continue with the subcommand the user originally ran; a bare `/ship setup` ends here.

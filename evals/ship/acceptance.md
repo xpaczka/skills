@@ -22,7 +22,7 @@ git worktree add ../<repo>-manual -b TEST-1-manual
 **Arm A (ship)**, in `../<repo>-ship`:
 
 1. `/ship ~/.agents/ship/acceptance/tickets/TEST-1-<slug>.md --quick`
-2. Follow it to the end: review and commit every chunk yourself, `/ship review`, triage, `/ship` to finish. Do not open a PR.
+2. Pick `chunk` autonomy and follow it to the end: review every chunk at its handoff and pick 'Commit & continue', triage the review, finish. Do not open a PR.
 
 **Arm B (manual)**, in `../<repo>-manual`:
 
@@ -36,13 +36,14 @@ git worktree add ../<repo>-manual -b TEST-1-manual
 In a new worktree, `/ship ~/.agents/ship/acceptance/tickets/TEST-2-<slug>.md` with full grilling. Tick each path as it happens:
 
 - [ ] grilling cites TEST-1's record as related work;
-- [ ] `/clear` (or a new chat) mid-feature, then `/ship` resumes at the right step;
+- [ ] a new chat mid-feature, then `/ship` resumes at the right step;
 - [ ] a plan amendment (if none happens naturally, tell the agent mid-chunk that one of the plan's assumptions is false);
-- [ ] `/ship next` refuses while a chunk is uncommitted;
+- [ ] `/ship next` after editing a handed-off chunk commits your edits with it;
+- [ ] `/ship mode review` mid-feature, then the remaining chunks commit without a handoff;
 - [ ] review produces at least one fix chunk, then finish writes the record;
 - [ ] `/ship pr --draft` shows a preview; decline it.
 
-**Cursor**: after TEST-2's first committed chunk, open the worktree in Cursor and run `/ship status` and `/ship next` once there: the skill is listed, state resolves, the handoff has the same shape, nothing is committed. Continue in Claude Code.
+**Cursor**: after TEST-2's first committed chunk, open the worktree in Cursor and run `/ship status` and `/ship next` once there: the skill is listed, state resolves, the handoff has the same shape and asks before committing. Continue in Claude Code.
 
 **Tracker read**: in a repo with a configured tracker, `/ship <real issue ID>`; confirm it fetched the issue body, then stop and `/ship clean`. Nothing is written to the tracker.
 

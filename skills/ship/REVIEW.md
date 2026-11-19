@@ -42,5 +42,5 @@ Give a recommendation for each: accept blockers and highs unless one contradicts
 Done when every finding is marked `accepted → chunk K` or `rejected (<user's reason>)`.
 
 - Group accepted findings into chunks: related findings share one chunk, and every chunk follows the plan phase's chunk rules (fields, green, tests, size). Append them to **Chunks** with `kind: review-fix`, `status: pending`.
-- Fix chunks planned → set `phase: implementing`; end with "N fix chunks planned. `/ship next` to start."
-- Nothing accepted → set `phase: finishing`; end with "No fixes needed. `/ship` to finish."
+- Fix chunks planned → set `phase: implementing`, say "N fix chunks planned.", and continue with [CHUNK.md](CHUNK.md) in the same turn.
+- Nothing accepted → set `phase: finishing`, say "No fixes needed.", and continue with [FINISH.md](FINISH.md) in the same turn.

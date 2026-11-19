@@ -1,19 +1,25 @@
 schema_version: "1.1"
 name: next-dirty-tree
-description: /ship next refuses to start a chunk while the previous chunk's changes are uncommitted.
-tags: [chunk, guardrail]
+description: Under review autonomy, /ship next commits the handed-off chunk's uncommitted changes with its commit message, then asks whether to finish or review again.
+tags: [chunk, commit]
 runs: 3
 context:
   scaffold_script: scaffold.sh
 execution:
   prompt: "/skills:ship next"
-  max_turns: 10
+  max_turns: 12
   timeout_seconds: 300
   allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write]
 graders:
-  - { type: regex, name: asks-to-commit-or-continue, pattern: "continue anyway", flags: i }
-  - { type: regex, name: names-the-changed-file, pattern: "src/csv\\.mjs" }
-  - { type: tool_used, name: no-commit, tool: Bash, input_match: "git commit", min: 0, max: 0 }
+  - { type: tool_used, name: commits, tool: Bash, input_match: "git commit", min: 1, max: 1 }
+  - { type: tool_used, name: no-no-verify, tool: Bash, input_match: "--no-verify", min: 0, max: 0 }
   - { type: tool_used, name: no-stash, tool: Bash, input_match: "git stash", min: 0, max: 0 }
   - { type: tool_used, name: no-source-edits, tool: Edit, input_match: "cwd/src/", min: 0, max: 0 }
   - { type: tool_used, name: no-source-writes, tool: Write, input_match: "cwd/src/", min: 0, max: 0 }
+  - type: regex
+    name: state-marks-committed
+    target: { source: file, path: ".ship/repos/cwd/work/ABC-123-invoice-csv-export.md" }
+    pattern: "### 2\\.[^#]*status: committed"
+  - type: llm
+    name: asks-finish-or-another-round
+    criteria: The final message says chunk 2 was committed (with the fix commit message) and asks whether to finish or run another review round. It does not start implementing anything new.

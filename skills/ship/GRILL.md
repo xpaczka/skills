@@ -35,6 +35,7 @@ Facts (what the code does, which APIs exist, versions) are yours to find; dispat
 - **Full** (`quick: false`): Call the Skill tool with "grilling". Brief it with the ticket, the inherited decisions as "already settled", and what you know about the codebase.
   - Fallback when `grilling` is missing: ask every open decision whose prerequisites are settled as one numbered round; give your recommended answer for each, worded so "yes" accepts it. Repeat until no decision is open and the user confirms you share an understanding.
 - **Quick** (`quick: true`): one round of the 2–3 decisions where a wrong guess would waste a whole chunk, each with a recommended answer.
+- **Autonomy**: add a question to the first round, full or quick: "Autonomy for this feature: chunk / review / auto?", one line on each from the SKILL.md Autonomy table, recommending `autonomy_default`. Save the answer as `autonomy`.
 - **Tracker writes**: when `source` is a tracker and `tracker.kind` is not `none`, add a question to the first round: "Tracker writes for this feature: none / comment / comment+status?", recommending `tracker_writes_default`. Otherwise set `tracker_writes: none`.
 
 After **each** round, write the newly settled decisions into **Decisions** before asking the next round, so a cleared or compacted context loses nothing.
@@ -47,8 +48,4 @@ Decisions are written for a planner who never saw this conversation:
 - an **Out of scope** bullet listing what the user excluded;
 - constraints the user mentioned in passing (deadlines, files not to touch, compatibility).
 
-Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning` and end with:
-
-> Grilling done: N decisions saved. `/clear`, then `/ship` to plan.
-
-(Use the capability table's wording when the harness cannot clear context.)
+Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning`, say "Grilling done: N decisions saved.", and continue with [PLAN.md](PLAN.md) in the same turn.

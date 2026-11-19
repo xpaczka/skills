@@ -9,6 +9,7 @@ quick: false
 source: github                  # linear | jira | github | file | text
 source_ref: ABC-123             # issue ID, URL, or file path
 tracker_writes: none            # none | comment | comment+status, chosen for this feature
+autonomy: review                # chunk | review | auto; /ship mode <level> switches it
 review_rounds: 0
 ---
 
@@ -41,9 +42,8 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 - files: `src/invoices/csv.ts`, `src/invoices/csv.test.ts`
 - acceptance: `<checks.test> src/invoices`
 - tdd: yes (seams: `toCsv(invoices)`)
-- executor: main (core logic the user will want to read closely)
 - commit_message: `feat(ABC-123): serialize invoices to CSV`
-- commit:                        # the user's commit SHA, filled by the next /ship next
+- commit:                        # short SHA, filled when the chunk is committed
 
 ## Amendments
 

@@ -63,6 +63,7 @@ YML
 }
 
 # write_state <phase>, then the body (sections after the title) on stdin.
+# AUTONOMY (default chunk) and REVIEW_ROUNDS (default 0) override the frontmatter.
 write_state() {
   {
     cat << MD
@@ -77,7 +78,8 @@ quick: false
 source: text
 source_ref: ""
 tracker_writes: none
-review_rounds: 0
+autonomy: ${AUTONOMY:-chunk}
+review_rounds: ${REVIEW_ROUNDS:-0}
 ---
 
 # ABC-123: Invoice CSV export
@@ -117,7 +119,6 @@ Pure serializer first, then dates, then a CLI command. Every chunk runs \`node -
 - files: \`src/csv.mjs\`, \`test/csv.test.mjs\`
 - acceptance: \`node --test\`
 - tdd: no (small pure function; tests written alongside)
-- executor: main (core logic the user will read closely)
 - commit_message: \`feat(ABC-123): serialize invoice lines to CSV\`
 
 ### 2. Locale-aware dates
