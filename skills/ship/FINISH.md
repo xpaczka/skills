@@ -27,6 +27,7 @@ Only when the state's `tracker_writes` allows it:
 
 ## 4. Close
 
-Set `phase: done`. Keep the state file; `/ship clean` deletes it. End with:
+Set `phase: done`. Keep the state file; `/ship clean` deletes it. Then, by autonomy:
 
-> Done, record saved. `/ship pr` to open a PR, `/ship clean` to drop the live state.
+- `auto`: continue with [PR.md](PR.md) in the same turn.
+- `chunk` or `review`: say "Done, record saved." and ask 'Open PR' / 'Not now'. Open PR → [PR.md](PR.md); Not now → end with "`/ship pr` when ready, `/ship clean` to drop the live state."

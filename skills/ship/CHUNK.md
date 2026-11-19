@@ -15,7 +15,8 @@ After 1 or 2, set the chunk's `commit` to HEAD's short SHA and `status: committe
 Then take the lowest-numbered `pending` chunk to step 2. If none is left:
 
 - `review_rounds` is 0 → set `phase: reviewing` and continue with [REVIEW.md](REVIEW.md) in the same turn.
-- otherwise (these were review fixes) → ask "Finish" / "Another review round". Finish: set `phase: finishing` and continue with [FINISH.md](FINISH.md). Another round: set `phase: reviewing` and continue with [REVIEW.md](REVIEW.md).
+- otherwise (these were review fixes), under `auto` → after round 1, set `phase: reviewing` and continue with [REVIEW.md](REVIEW.md) for round 2; after round 2, set `phase: finishing` and continue with [FINISH.md](FINISH.md).
+- otherwise, under `chunk` or `review` → ask "Finish" / "Another review round". Finish: set `phase: finishing` and continue with [FINISH.md](FINISH.md). Another round: set `phase: reviewing` and continue with [REVIEW.md](REVIEW.md).
 
 ## 2. Implement in a subagent
 
@@ -23,7 +24,7 @@ Set the chunk `status: in-progress`. Brief one fresh subagent for it, review-fix
 
 - the chunk entry, the **Decisions** it touches, the **Plan**'s approach and checks, and any **Amendments**;
 - the scope rule: stay inside the chunk's goal; work a later chunk or another decision covers stays out even when it seems to belong here, reported as "left for chunk K";
-- `kind: review-fix`: the findings the goal names, copied from the state's **Review**;
+- `kind: review-fix`: the findings the goal names, copied from the state's **Review**; for each verify id, read that issue from `.verify/issues.json` (its `problem`, `evidence`, `fix` and `touches`) before changing code, and set its `status: fixed` once fixed;
 - `tdd: yes`: Call the Skill tool with "tdd"; the seams were approved with the plan. Fallback: one failing test per behaviour through a listed seam, the minimum code to pass it, repeat; refactor only while green;
 - run the acceptance commands and checks until green; never commit, stash or reset;
 - on a **structural** deviation (below), stop and report it instead of working around it;

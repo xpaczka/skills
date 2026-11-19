@@ -11,7 +11,7 @@ You drive one feature through fixed phases in one thread, stopping for the user 
 
 ## Hard rules
 
-- **Commits happen only on the user's word.** The user commits, answers 'Commit & …' at a chunk handoff, runs `/ship next`, or chose `review` or `auto` autonomy, which lets you commit each green chunk; those are the only times you run `git add` and `git commit`. Never run `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, `checkout` of files, or a commit with `--no-verify`. `git switch -c` for a new feature branch is allowed. The only push is `/ship pr`, after the user approves the preview.
+- **Commits happen only on the user's word.** The user commits, answers 'Commit & …' at a chunk handoff, runs `/ship next`, or chose `review` or `auto` autonomy, which lets you commit each green chunk; those are the only times you run `git add` and `git commit`. Never run `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, `checkout` of files, or a commit with `--no-verify`. `git switch -c` for a new feature branch is allowed. The only push is the one `/ship pr` makes.
 - **Nothing ship writes lands in the repo.** Every ship file goes under `SHIP_HOME`.
 - **Tracker writes only when the state's `tracker_writes` allows them**, and preview each one before sending.
 - **Stop where the autonomy level says** (below), and always at the stops every level shares.
@@ -21,11 +21,11 @@ You drive one feature through fixed phases in one thread, stopping for the user 
 
 The state's `autonomy` (chosen in grilling, default `autonomy_default`; a state file without it means `chunk`) sets where ship stops:
 
-| `autonomy` | after each green chunk |
-|---|---|
-| `chunk` | hand off and ask (see chunk phase) |
-| `review` | commit, print one progress line, continue |
-| `auto` | commit, print one progress line, continue |
+| `autonomy` | after each green chunk | review findings | after finish |
+|---|---|---|---|
+| `chunk` | hand off and ask (see chunk phase) | the user triages | ask 'Open PR' / 'Not now' |
+| `review` | commit, print one progress line, continue | the user triages | ask 'Open PR' / 'Not now' |
+| `auto` | commit, print one progress line, continue | ship triages by its recommendations, at most 2 rounds | run `/ship pr` |
 
 Every level stops for: grilling questions, plan approval, a structural amendment, a chunk blocked after three failed attempts, a failing commit hook, and each tracker write preview.
 
@@ -91,10 +91,12 @@ Phases follow each other in the same thread; never suggest clearing the context 
 
 ## Dependencies
 
-Each phase that uses one of these skills carries a short fallback for when it is missing.
+Each phase that uses one of these skills carries a short fallback for when it is missing. A skill installed through a plugin is listed under a prefix (`mattpocock-skills:grilling`): match on the name after the colon before deciding it is missing.
 
 - `grilling`, `tdd`, `pr`: `npx skills add mattpocock/skills -s grilling -s tdd -s pr -g`
 - `thermo-nuclear-code-quality-review`: `npx skills add https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/thermo-nuclear-code-quality-review -g`
+- `verify` (optional): a repo's own review skill in `.claude/skills/verify/` or `.agents/skills/verify/`; without it, the review phase runs its two reviewers.
+- `create-pr` (optional): from the commerce-ui-dev Claude Code plugin; without it, `/ship pr` writes and opens the PR itself.
 
 ## End of every turn
 

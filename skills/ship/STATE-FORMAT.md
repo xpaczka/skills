@@ -53,4 +53,6 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 
 ### Round 1
 - R1.1 [thermo · blocker] `src/invoices/csv.ts:42`: finding → remedy (accepted → chunk 5)
+- R1.2 [verify:correctness · medium] `src/invoices/csv.ts:57`: finding → fix (correctness-001; rejected (contradicts the locale decision))
+- 2 pre-existing issues in touched files, see `.verify/issues.json`
 
