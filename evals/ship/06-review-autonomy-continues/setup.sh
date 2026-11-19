@@ -12,10 +12,11 @@ Pure serializer, then quoting. Every chunk runs \`node --test\`.
 ### 1. CSV serializer for invoice lines
 - status: pending
 - kind: review-fix
-- goal: R1.1, \`toCsv(invoices)\` in \`src/csv.mjs\` returns a header row plus one row per invoice line (id, issue date as ISO, description, amount as a two-place decimal string).
+- goal: R1.1, \`toCsv(invoices)\` in \`src/csv.mjs\` returns a header row plus one row per invoice line (id, issue date via \`Intl.DateTimeFormat(locale)\`, description, amount as a two-place decimal string); \`locale\` defaults to \`en-US\`.
 - files: \`src/csv.mjs\`, \`test/csv.test.mjs\`
 - acceptance: \`node --test\`
 - tdd: no (small pure function; tests written alongside)
+- depends_on: []
 - commit_message: \`fix(ABC-123): serialize invoice lines to CSV\`
 - commit:
 
@@ -26,6 +27,7 @@ Pure serializer, then quoting. Every chunk runs \`node --test\`.
 - files: \`src/csv.mjs\`, \`test/csv.test.mjs\`
 - acceptance: \`node --test\`
 - tdd: no (one rule; tests written alongside)
+- depends_on: [1]
 - commit_message: \`fix(ABC-123): quote CSV fields per RFC 4180\`
 - commit:
 
