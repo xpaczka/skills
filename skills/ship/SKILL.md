@@ -19,7 +19,7 @@ You drive one feature through fixed phases in one thread, stopping for the user 
 
 ## Autonomy
 
-The state's `autonomy` (chosen in grilling, default `autonomy_default`; a state file without it means `chunk`) sets where ship stops:
+The state's `autonomy` (chosen in grilling, default `autonomy_default`, else `review`; a state file without it means `chunk`) sets where ship stops:
 
 | `autonomy` | after each green chunk | review findings | after finish |
 |---|---|---|---|
@@ -99,7 +99,7 @@ Each phase that uses one of these skills carries a short fallback for when it is
 - `grilling`, `tdd`, `pr`: `npx skills add mattpocock/skills -s grilling -s tdd -s pr -g`
 - `thermo-nuclear-code-quality-review`: `npx skills add https://github.com/cursor/plugins/tree/main/cursor-team-kit/skills/thermo-nuclear-code-quality-review -g`
 - `verify` (optional): a repo's own review skill in `.claude/skills/verify/` or `.agents/skills/verify/`; without it, the review phase runs its two reviewers.
-- `create-pr` (optional): from the commerce-ui-dev Claude Code plugin; without it, `/ship pr` writes and opens the PR itself.
+- `create-pr` (optional, no public install): a PR skill installed as a Claude Code plugin; without it, `/ship pr` writes and opens the PR itself.
 
 ## End of every turn
 

@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: next-dirty-tree
-description: Under review autonomy, /ship next commits the handed-off chunk's uncommitted changes with its commit message, then asks whether to finish or review again.
+description: /ship next commits the handed-off last review-fix chunk's uncommitted changes with its commit message, then stops to ask whether to finish or review again (continuing to the next chunk is case 06).
 tags: [chunk, commit]
 runs: 3
 context:

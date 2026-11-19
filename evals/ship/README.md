@@ -18,7 +18,7 @@ Claude Opus 5.5, Sonnet judge, 3 runs per case, 2026-10-20: score 0.97, $4.79, 6
 | Case | Checks | Score | Cost/run | Turns |
 |---|---|---|---|---|
 | status-resume | resumes from state, reports, changes nothing | 1.00 | $0.12 | 3 |
-| next-dirty-tree | under `review`, commits the handed-off chunk, then asks to finish | not yet run | | |
+| next-dirty-tree | `/ship next` commits the handed-off last fix chunk, then asks to finish | not yet run | | |
 | next-implements-chunk | under `chunk`, one chunk in a subagent, re-verified, handoff, no commit | not yet run | | |
 | plan-from-decisions | complete, vertical chunks that respect the Decisions | 0.89 | $0.27 | 8 |
 | review-planted-issues | both reviewers catch a planted spec and quality issue | 0.95 | $0.79 | 3 |

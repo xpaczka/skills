@@ -21,6 +21,10 @@ Prose that names skills for a human to pick from (the README catalog, a list of 
 
 ### Exception: reading a user-invoked skill by path
 
-A subagent may follow a user-invoked external skill's instructions by reading its `SKILL.md` from disk when telling the human to run it would break the calling workflow. The step searches the harnesses' skill install folders for that `SKILL.md`, passes its path to the subagent, and gives a fallback for when nothing is found. The one use today: `ship`'s review phase (the Thermo-nuclear skill step under Prepare in [REVIEW.md](../skills/ship/REVIEW.md)) hands `thermo-nuclear-code-quality-review` to its quality reviewer this way, and owns the search order.
+A skill may follow a user-invoked external skill's instructions by reading its `SKILL.md` from disk when telling the human to run it would break the calling workflow. The step searches the known install folders for that `SKILL.md`, reads it (or passes its path to a subagent), and gives a fallback for when nothing is found. The uses today, all in `ship`, each owning its search order:
+
+- the review phase's ship reviewers ([REVIEW.md](../skills/ship/REVIEW.md), step 2b) pass `thermo-nuclear-code-quality-review` to the quality reviewer subagent;
+- the review phase ([REVIEW.md](../skills/ship/REVIEW.md), step 2a) follows the repo's own `verify` skill in the main thread, since it starts its own subagents; without it, step 2b runs;
+- the PR phase ([PR.md](../skills/ship/PR.md), step 2) follows an installed `create-pr` skill in the main thread; without it, step 3 writes the PR.
 
 External skills also need an install line and a fallback: see [authoring.md](authoring.md#dependencies-on-external-skills).

@@ -11,11 +11,11 @@ Opens a pull request for the feature branch, written in the repo's own conventio
 
 ## 2. Through create-pr
 
-The team's own PR skill (from the commerce-ui-dev Claude Code plugin), so ship's PRs match the ones opened by hand.
+A `create-pr` skill installed as a Claude Code plugin, so ship's PRs match the ones opened by hand with it.
 
-1. It commits whatever is uncommitted under its own title. If `git status --porcelain` is not empty, list the files and stop: ship commits only chunks.
-2. It takes free text as `$ARGUMENTS`: `draft` in draft mode; the feature ID when `source` is a tracker, so it links the issue; and the **Content** above as context for its Why, Evidence and Notes for reviewers.
-3. It sets `disable-model-invocation`, so the Skill tool can't load it: read that SKILL.md and follow it with those arguments, resolving its relative links from that file's folder. It runs to completion without a preview; its own **Stop** cases stop ship too.
+1. It may commit whatever is uncommitted under its own title. If `git status --porcelain` is not empty, list the files and stop: ship commits only chunks.
+2. It takes free text as `$ARGUMENTS`: `draft` in draft mode; the feature ID when `source` is a tracker, so it links the issue; and the **Content** above as context for the PR body.
+3. It is usually user-invoked, so the Skill tool can't load it: read that SKILL.md and follow it with those arguments, resolving its relative links from that file's folder. It runs to completion without a preview; its own **Stop** cases stop ship too.
 
 Continue at step 6.
 
