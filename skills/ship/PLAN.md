@@ -21,7 +21,7 @@ If exploring reveals a decision the state does not settle, never guess it silent
 - fills every field of a chunk in [STATE-FORMAT.md](STATE-FORMAT.md):
   - `acceptance`: the exact commands that prove the chunk works;
   - `tdd`: `yes` for logic with rules, branches, parsing or state, listing the **seams** (the public functions or endpoints the tests drive); `no` with a reason for wiring, UI and config;
-  - `executor`: `subagent` only for mechanical high-volume work whose acceptance commands fully define done (codemods, bulk renames, generated fixtures), or for exploration-heavy work whose raw output the user does not need; otherwise `main`. Always give the reason;
+  - `depends_on`: the chunks that must be committed first, `[]` when none. Two chunks that edit the same file depend on each other, so a parallel wave never conflicts on purpose;
   - `commit_message`: in `config.commit_style`; with `conventional`, use the feature ID as the scope.
 
 ## 3. Approve
@@ -34,7 +34,7 @@ Present the approach, then every chunk in this shape, every field filled (no sum
 - files: …
 - acceptance: `…`
 - tdd: yes (seams: …) | no (<reason>)
-- executor: main | subagent (<reason>)
+- depends_on: [] | [N, …]
 - commit: `…`
 ```
 
@@ -46,9 +46,6 @@ Done when the state file holds the approved plan, after leaving plan mode:
 
 - **Plan**: approach, key files, risks, and the checks every chunk runs;
 - **Chunks**: every chunk with `status: pending`, `kind: plan`;
-- `metrics.chunks_planned` = the number of chunks;
-- `phase: implementing` and its Timeline entry.
+- `phase: implementing`.
 
-End with:
-
-> Plan saved: N chunks. `/clear`, then `/ship next` to start chunk 1.
+Then say "Plan saved: N chunks." and continue with [CHUNK.md](CHUNK.md) in the same turn: chunk 1 starts right away.

@@ -7,7 +7,7 @@ Agent-agnostic [Agent Skills](https://agentskills.io) (`SKILL.md` format) for a 
 | Skill | Invocation | Description |
 | --- | --- | --- |
 | [merge&#8209;parent&#8209;branch](skills/merge-parent-branch/SKILL.md) | User | Merge the parent branch into the current one: sync both with the remote, resolve conflicts so neither side's fix or feature is lost, then commit and push after one approval. |
-| [ship](skills/ship/SKILL.md) | User | Grill → plan → small chunks you review and commit → independent two-axis review. State and history live in `~/.agents/ship/`, never in the repo. |
+| [ship](skills/ship/SKILL.md) | User | Grill → plan → small chunks, each built by a subagent, that you commit with one click or ship commits at the autonomy you pick (`chunk`, `review`, `auto`) → independent review, through the repo's own `verify` skill when it has one. Worktrees and parallel chunks for independent work. State and history live in `~/.agents/ship/`, never in the repo. |
 | [web&#8209;ready&#8209;audit](skills/web-ready-audit/SKILL.md) | User | Audit a website or web app before launch, on any stack: what is missing or misconfigured, as Blocker, Should fix and Nice to have findings. Report only, never edits. |
 
 ## Install
@@ -28,7 +28,7 @@ Or as a Claude Code plugin, with every skill namespaced (`/skills:ship`; the bar
 
 ### Claude Code permissions for `ship`
 
-`ship` keeps its state outside the repo, in `~/.agents/ship/`. To stop Claude Code from asking on every call, allow exactly that folder and ship's two scripts in `~/.claude/settings.json` (use your absolute home path where shown):
+`ship` keeps its state outside the repo, in `~/.agents/ship/`. To stop Claude Code from asking on every call, allow exactly that folder and ship's locate script in `~/.claude/settings.json` (use your absolute home path where shown):
 
 ```json
 "permissions": {
@@ -36,8 +36,7 @@ Or as a Claude Code plugin, with every skill namespaced (`/skills:ship`; the bar
   "allow": [
     "Read(~/.agents/ship/**)",
     "Edit(~/.agents/ship/**)",
-    "Bash(/Users/<you>/.claude/skills/ship/scripts/locate.sh)",
-    "Bash(/Users/<you>/.claude/skills/ship/scripts/snapshot.sh)"
+    "Bash(/Users/<you>/.claude/skills/ship/scripts/locate.sh)"
   ]
 }
 ```

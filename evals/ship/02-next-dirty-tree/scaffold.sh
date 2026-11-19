@@ -63,6 +63,7 @@ YML
 }
 
 # write_state <phase>, then the body (sections after the title) on stdin.
+# AUTONOMY (default chunk) and REVIEW_ROUNDS (default 0) override the frontmatter.
 write_state() {
   {
     cat << MD
@@ -77,7 +78,8 @@ quick: false
 source: text
 source_ref: ""
 tracker_writes: none
-review_rounds: 0
+autonomy: ${AUTONOMY:-chunk}
+review_rounds: ${REVIEW_ROUNDS:-0}
 ---
 
 # ABC-123: Invoice CSV export
@@ -103,24 +105,22 @@ make_repo
 make_ship_home
 printf 'export const toCsv = () => ""\n' > src/csv.mjs
 git add -A && git commit -qm "feat(ABC-123): add CSV serializer"
-printf 'export const toCsv = (rows) => rows.join("\\n")\n' > src/csv.mjs   # uncommitted chunk 2 work
-write_state implementing << 'MD'
+printf 'export const toCsv = (rows) => rows.join("\\n")\n' > src/csv.mjs   # the handed-off fix, plus the user's own edits
+AUTONOMY=review REVIEW_ROUNDS=1 write_state implementing << 'MD'
 ## Chunks
 
 ### 1. CSV serializer
+- status: committed
+- commit: 1a2b3c4
+
+### 2. Join rows with newlines
 - status: handed-off
-- handoff_snapshot: 0000000
+- kind: review-fix
+- goal: R1.1, rows are joined with newlines.
+- commit_message: `fix(ABC-123): join CSV rows with newlines`
 
-### 2. Locale-aware dates
-- status: pending
+## Review
 
-## Metrics
-
-```json
-{ "chunks_planned": 2, "chunks_shipped": 0, "amendments": 0, "verify_failures": {}, "rework_lines": {}, "user_turns": {}, "review": { "findings": 0, "accepted": 0, "by_axis": {}, "by_severity": {} } }
-```
-
-## Timeline
-
-- implementing 2026-10-20T10:00:00Z
+### Round 1
+- R1.1 [spec · blocker] `src/csv.mjs:1`: rows are not joined → join them with newlines (accepted → chunk 2)
 MD

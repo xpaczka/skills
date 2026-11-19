@@ -14,13 +14,16 @@ Collect issue IDs the ticket links or mentions; step 4 uses them.
 
 ## 2. Branch
 
-- On `default_branch`: build the name from `branch_convention` and run `git switch -c <name>`. If the tree has uncommitted changes, ask first; they would move to the new branch.
-- On another branch: ask "Use `<branch>` as the feature branch?" If no, ask which branch to create.
+Ask where the feature runs: **New worktree** / **This checkout**. Recommend a worktree when this checkout has uncommitted changes or its branch has a state file whose phase is not `done`, so features run side by side, one session each; otherwise recommend this checkout.
+
+- **New worktree**: build the name from `branch_convention`, run `git worktree add -b <name> <repo root>/../<repo folder name>-<name> <default_branch>`, and install dependencies there with the lockfile's package manager. Enter it with the harness's worktree tool, then run `scripts/locate.sh` again, since the branch and state file changed. Without a worktree tool, run `scripts/locate.sh` from inside `<path>` for that branch's state file and run steps 3–4 with it (`SHIP_HOME` is shared across worktrees), then end with: "Open a session in `<path>` and run `/ship`."
+- **This checkout**, on `default_branch`: build the name from `branch_convention` and run `git switch -c <name>`. If the tree has uncommitted changes, ask first; they would move to the new branch.
+- **This checkout**, on another branch: ask "Use `<branch>` as the feature branch?" If no, ask which branch to create.
 - `base_commit` = `git merge-base HEAD <default_branch>`.
 
 ## 3. Create the state file
 
-Create it from [STATE-FORMAT.md](STATE-FORMAT.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**, the first **Timeline** entry. Replace every example value from the template; keep the section headings.
+Create it from [STATE-FORMAT.md](STATE-FORMAT.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**. Replace every example value from the template; keep the section headings.
 
 ## 4. Pull in related work
 
@@ -35,6 +38,7 @@ Facts (what the code does, which APIs exist, versions) are yours to find; dispat
 - **Full** (`quick: false`): Call the Skill tool with "grilling". Brief it with the ticket, the inherited decisions as "already settled", and what you know about the codebase.
   - Fallback when `grilling` is missing: ask every open decision whose prerequisites are settled as one numbered round; give your recommended answer for each, worded so "yes" accepts it. Repeat until no decision is open and the user confirms you share an understanding.
 - **Quick** (`quick: true`): one round of the 2–3 decisions where a wrong guess would waste a whole chunk, each with a recommended answer.
+- **Autonomy**: add a question to the first round, full or quick: "Autonomy for this feature: chunk / review / auto?", one line on each from the SKILL.md Autonomy table, recommending `autonomy_default`, else `review`. Save the answer as `autonomy`.
 - **Tracker writes**: when `source` is a tracker and `tracker.kind` is not `none`, add a question to the first round: "Tracker writes for this feature: none / comment / comment+status?", recommending `tracker_writes_default`. Otherwise set `tracker_writes: none`.
 
 After **each** round, write the newly settled decisions into **Decisions** before asking the next round, so a cleared or compacted context loses nothing.
@@ -47,8 +51,4 @@ Decisions are written for a planner who never saw this conversation:
 - an **Out of scope** bullet listing what the user excluded;
 - constraints the user mentioned in passing (deadlines, files not to touch, compatibility).
 
-Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning`, append the Timeline entry, and end with:
-
-> Grilling done: N decisions saved. `/clear`, then `/ship` to plan.
-
-(Use the capability table's wording when the harness cannot clear context.)
+Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning`, say "Grilling done: N decisions saved.", and continue with [PLAN.md](PLAN.md) in the same turn.

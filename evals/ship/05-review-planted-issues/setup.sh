@@ -58,14 +58,4 @@ Single chunk: \`toCsv\` in \`src/csv.mjs\` with tests.
 
 ### 1. CSV serializer
 - status: committed
-
-## Metrics
-
-\`\`\`json
-{ "chunks_planned": 1, "chunks_shipped": 1, "amendments": 0, "verify_failures": {}, "rework_lines": {}, "user_turns": {}, "review": { "findings": 0, "accepted": 0, "by_axis": {}, "by_severity": {} } }
-\`\`\`
-
-## Timeline
-
-- reviewing 2026-10-20T11:00:00Z
 MD

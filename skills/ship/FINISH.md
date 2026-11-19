@@ -1,6 +1,6 @@
 # Finish phase
 
-Condenses the feature into a **record** for future grilling sessions, plus metrics for `/ship stats`. Entry: `/ship` with `phase: finishing`.
+Condenses the feature into a **record** for future grilling sessions. Entry: `/ship` with `phase: finishing`.
 
 ## 1. Check
 
@@ -18,34 +18,16 @@ Path: `SHIP_HOME/repos/<key>/records/<feature>-<title as kebab-case>.md`, from [
 - **Commits**: ``git log --reverse --format='- `%h` %s' <base_commit>..HEAD``;
 - **Notes for future work**: gotchas, follow-ups, constraints.
 
-## 3. Write the metrics
-
-Next to the record, same name with `.metrics.json`:
-
-```json
-{
-  "feature": "<feature>",
-  "repo_key": "<key>",
-  "repo_path": "<absolute repo root>",
-  "completed": "<YYYY-MM-DD>",
-  "quick": false,
-  "review_rounds": 1,
-  "timeline": [{ "phase": "grilling", "at": "<UTC time>" }],
-  "metrics": { "...": "the state's Metrics block, as is" }
-}
-```
-
-`timeline` is the state's **Timeline**, in order. `/ship stats` uses `repo_path` and `timeline` to find this feature's token usage.
-
-## 4. Tracker update
+## 3. Tracker update
 
 Only when the state's `tracker_writes` allows it:
 
 - `comment` or `comment+status`: draft a short comment (what shipped, the commits, the PR link if there is one), show it, and post it once the user approves.
 - `comment+status`: also propose the target status, and change it once the user approves.
 
-## 5. Close
+## 4. Close
 
-Set `phase: done` with its Timeline entry. Keep the state file; `/ship clean` deletes it. End with:
+Set `phase: done`. Keep the state file; `/ship clean` deletes it. Then, by autonomy:
 
-> Done, record saved. `/ship pr` to open a PR, `/ship clean` to drop the live state.
+- `auto`: continue with [PR.md](PR.md) in the same turn.
+- `chunk` or `review`: say "Done, record saved." and ask 'Open PR' / 'Not now'. Open PR → [PR.md](PR.md); Not now → end with "`/ship pr` when ready, `/ship clean` to drop the live state."

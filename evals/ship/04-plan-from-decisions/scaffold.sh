@@ -63,6 +63,7 @@ YML
 }
 
 # write_state <phase>, then the body (sections after the title) on stdin.
+# AUTONOMY (default chunk) and REVIEW_ROUNDS (default 0) override the frontmatter.
 write_state() {
   {
     cat << MD
@@ -77,7 +78,8 @@ quick: false
 source: text
 source_ref: ""
 tracker_writes: none
-review_rounds: 0
+autonomy: ${AUTONOMY:-chunk}
+review_rounds: ${REVIEW_ROUNDS:-0}
 ---
 
 # ABC-123: Invoice CSV export
@@ -104,9 +106,4 @@ make_ship_home
 write_state planning << MD
 $DECISIONS
 - Delivery: a CLI command \`node bin/export-csv.mjs <invoices.json> [--locale xx-XX]\` that prints CSV to stdout.
-
-## Timeline
-
-- grilling 2026-10-20T09:00:00Z
-- planning 2026-10-20T09:30:00Z
 MD

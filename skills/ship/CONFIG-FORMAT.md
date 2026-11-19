@@ -10,6 +10,7 @@ ship's config is YAML in two files, as the header comments of this block say.
 # --- Decisions (asked by setup; global values are offered as defaults) ---
 pr_default: draft # draft | ready; /ship pr --draft|--ready overrides per PR
 tracker_writes_default: none # none | comment | comment+status; asked again per feature
+autonomy_default: review # chunk | review | auto; asked again per feature
 review_effort_bump: 1 # reviewer effort = configured effort + this many levels (capped at max)
 
 # --- Facts (detected by setup; re-run /ship setup to refresh) ---

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: review-autonomy-continues
+description: Under review autonomy, /ship next implements each pending chunk, commits it once green, continues to the next without a handoff, and stops only to ask whether to finish.
+tags: [chunk, autonomy]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/skills:ship next"
+  max_turns: 50
+  timeout_seconds: 900
+  allowed_tools: [Skill, Bash, Read, Glob, Grep, Edit, Write, Agent]
+graders:
+  - { type: file_exists, name: creates-serializer, path: src/csv.mjs }
+  - { type: tool_used, name: implements-in-subagents, tool: Agent, min: 2 }
+  - { type: tool_used, name: commits-each-chunk, tool: Bash, input_match: "git commit", min: 2, max: 2 }
+  - { type: tool_used, name: no-no-verify, tool: Bash, input_match: "--no-verify", min: 0, max: 0 }
+  - type: regex
+    name: state-marks-both-committed
+    target: { source: file, path: ".ship/repos/cwd/work/ABC-123-invoice-csv-export.md" }
+    pattern: "### 1\\.[^#]*status: committed[\\s\\S]*### 2\\.[^#]*status: committed"
+  - type: llm
+    name: continues-then-asks
+    criteria: |
+      Pass if ALL hold:
+      - the transcript shows one short progress line per committed chunk (like "Chunk 1/2 committed <sha> <subject>"), not a full handoff with a commit question between chunks;
+      - the final message asks whether to finish or run another review round;
+      - nothing claims a chunk was committed while its checks failed.

@@ -63,6 +63,7 @@ YML
 }
 
 # write_state <phase>, then the body (sections after the title) on stdin.
+# AUTONOMY (default chunk) and REVIEW_ROUNDS (default 0) override the frontmatter.
 write_state() {
   {
     cat << MD
@@ -77,7 +78,8 @@ quick: false
 source: text
 source_ref: ""
 tracker_writes: none
-review_rounds: 0
+autonomy: ${AUTONOMY:-chunk}
+review_rounds: ${REVIEW_ROUNDS:-0}
 ---
 
 # ABC-123: Invoice CSV export
@@ -159,14 +161,4 @@ Single chunk: \`toCsv\` in \`src/csv.mjs\` with tests.
 
 ### 1. CSV serializer
 - status: committed
-
-## Metrics
-
-\`\`\`json
-{ "chunks_planned": 1, "chunks_shipped": 1, "amendments": 0, "verify_failures": {}, "rework_lines": {}, "user_turns": {}, "review": { "findings": 0, "accepted": 0, "by_axis": {}, "by_severity": {} } }
-\`\`\`
-
-## Timeline
-
-- reviewing 2026-10-20T11:00:00Z
 MD

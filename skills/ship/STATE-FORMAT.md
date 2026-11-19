@@ -9,6 +9,7 @@ quick: false
 source: github                  # linear | jira | github | file | text
 source_ref: ABC-123             # issue ID, URL, or file path
 tracker_writes: none            # none | comment | comment+status, chosen for this feature
+autonomy: review                # chunk | review | auto; /ship mode <level> switches it
 review_rounds: 0
 ---
 
@@ -41,10 +42,9 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 - files: `src/invoices/csv.ts`, `src/invoices/csv.test.ts`
 - acceptance: `<checks.test> src/invoices`
 - tdd: yes (seams: `toCsv(invoices)`)
-- executor: main (core logic the user will want to read closely)
+- depends_on: []                  # chunks that must be committed first; ready chunks run in parallel
 - commit_message: `feat(ABC-123): serialize invoices to CSV`
-- handoff_snapshot:              # scripts/snapshot.sh output at handoff
-- commit:                        # the user's commit SHA, filled by the next /ship next
+- commit:                        # short SHA, filled when the chunk is committed
 
 ## Amendments
 
@@ -54,23 +54,6 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 
 ### Round 1
 - R1.1 [thermo · blocker] `src/invoices/csv.ts:42`: finding → remedy (accepted → chunk 5)
+- R1.2 [verify:correctness · medium] `src/invoices/csv.ts:57`: finding → fix (correctness-001; rejected (contradicts the locale decision))
+- 2 pre-existing issues in touched files, see `.verify/issues.json`
 
-## Metrics
-
-```json
-{
-  "chunks_planned": 0,
-  "chunks_shipped": 0,
-  "amendments": 0,
-  "verify_failures": {},
-  "rework_lines": {},
-  "user_turns": {},
-  "review": { "findings": 0, "accepted": 0, "by_axis": {}, "by_severity": {} }
-}
-```
-
-Per-chunk maps are keyed by chunk number.
-
-## Timeline
-
-- grilling 2026-10-20T09:00:00Z
