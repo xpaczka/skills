@@ -20,7 +20,7 @@ Collect issue IDs the ticket links or mentions; step 4 uses them.
 
 ## 3. Create the state file
 
-Create it from [STATE-FORMAT.md](STATE-FORMAT.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**, the first **Timeline** entry. Replace every example value from the template; keep the section headings.
+Create it from [STATE-FORMAT.md](STATE-FORMAT.md): frontmatter filled, `phase: grilling`, `quick` set, the ticket body verbatim under **Ticket**. Replace every example value from the template; keep the section headings.
 
 ## 4. Pull in related work
 
@@ -47,7 +47,7 @@ Decisions are written for a planner who never saw this conversation:
 - an **Out of scope** bullet listing what the user excluded;
 - constraints the user mentioned in passing (deadlines, files not to touch, compatibility).
 
-Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning`, append the Timeline entry, and end with:
+Done when the user has confirmed the shared understanding (full) or answered the round (quick), and every decision is in the state file. Then set `phase: planning` and end with:
 
 > Grilling done: N decisions saved. `/clear`, then `/ship` to plan.
 

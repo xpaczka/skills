@@ -28,7 +28,7 @@ Or as a Claude Code plugin, with every skill namespaced (`/skills:ship`; the bar
 
 ### Claude Code permissions for `ship`
 
-`ship` keeps its state outside the repo, in `~/.agents/ship/`. To stop Claude Code from asking on every call, allow exactly that folder and ship's two scripts in `~/.claude/settings.json` (use your absolute home path where shown):
+`ship` keeps its state outside the repo, in `~/.agents/ship/`. To stop Claude Code from asking on every call, allow exactly that folder and ship's locate script in `~/.claude/settings.json` (use your absolute home path where shown):
 
 ```json
 "permissions": {
@@ -36,8 +36,7 @@ Or as a Claude Code plugin, with every skill namespaced (`/skills:ship`; the bar
   "allow": [
     "Read(~/.agents/ship/**)",
     "Edit(~/.agents/ship/**)",
-    "Bash(/Users/<you>/.claude/skills/ship/scripts/locate.sh)",
-    "Bash(/Users/<you>/.claude/skills/ship/scripts/snapshot.sh)"
+    "Bash(/Users/<you>/.claude/skills/ship/scripts/locate.sh)"
   ]
 }
 ```

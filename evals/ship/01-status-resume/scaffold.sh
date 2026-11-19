@@ -116,8 +116,4 @@ write_state implementing << 'MD'
 
 ### 4. RFC 4180 quoting
 - status: pending
-
-## Timeline
-
-- implementing 2026-10-20T10:00:00Z
 MD

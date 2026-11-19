@@ -43,7 +43,6 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 - tdd: yes (seams: `toCsv(invoices)`)
 - executor: main (core logic the user will want to read closely)
 - commit_message: `feat(ABC-123): serialize invoices to CSV`
-- handoff_snapshot:              # scripts/snapshot.sh output at handoff
 - commit:                        # the user's commit SHA, filled by the next /ship next
 
 ## Amendments
@@ -55,22 +54,3 @@ The approved plan: approach, key files, risks, and the checks every chunk runs.
 ### Round 1
 - R1.1 [thermo · blocker] `src/invoices/csv.ts:42`: finding → remedy (accepted → chunk 5)
 
-## Metrics
-
-```json
-{
-  "chunks_planned": 0,
-  "chunks_shipped": 0,
-  "amendments": 0,
-  "verify_failures": {},
-  "rework_lines": {},
-  "user_turns": {},
-  "review": { "findings": 0, "accepted": 0, "by_axis": {}, "by_severity": {} }
-}
-```
-
-Per-chunk maps are keyed by chunk number.
-
-## Timeline
-
-- grilling 2026-10-20T09:00:00Z

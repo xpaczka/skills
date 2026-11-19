@@ -46,8 +46,7 @@ Done when the state file holds the approved plan, after leaving plan mode:
 
 - **Plan**: approach, key files, risks, and the checks every chunk runs;
 - **Chunks**: every chunk with `status: pending`, `kind: plan`;
-- `metrics.chunks_planned` = the number of chunks;
-- `phase: implementing` and its Timeline entry.
+- `phase: implementing`.
 
 End with:
 

@@ -129,14 +129,4 @@ Pure serializer first, then dates, then a CLI command. Every chunk runs \`node -
 - status: pending
 - kind: plan
 - goal: quote fields containing commas, quotes or newlines; double inner quotes.
-
-## Metrics
-
-\`\`\`json
-{ "chunks_planned": 2, "chunks_shipped": 0, "amendments": 0, "verify_failures": {}, "rework_lines": {}, "user_turns": {}, "review": { "findings": 0, "accepted": 0, "by_axis": {}, "by_severity": {} } }
-\`\`\`
-
-## Timeline
-
-- implementing 2026-10-20T10:00:00Z
 MD

@@ -27,8 +27,7 @@ git worktree add ../<repo>-manual -b TEST-1-manual
 **Arm B (manual)**, in `../<repo>-manual`:
 
 1. Your usual flow: grilling session, then `/plan Implement TEST-1 (<ticket text>). Split into commitable chunks; after each, stop, suggest a commit message and list the remaining chunks.`
-2. Before reviewing each chunk, run `~/.agents/skills/ship/scripts/snapshot.sh` and note the hash; after committing, count your rework with `git diff --numstat <hash> HEAD`.
-3. Finish with your usual thermo-nuclear review in a fresh session, and fix what you accept.
+2. Finish with your usual thermo-nuclear review in a fresh session, and fix what you accept.
 
 **Same final review for both**: in a fresh session per worktree, run the thermo-nuclear review on `<default branch>..HEAD` and count blocker and high findings. This is the quality comparison; it does not change either branch.
 
@@ -41,8 +40,7 @@ In a new worktree, `/ship ~/.agents/ship/acceptance/tickets/TEST-2-<slug>.md` wi
 - [ ] a plan amendment (if none happens naturally, tell the agent mid-chunk that one of the plan's assumptions is false);
 - [ ] `/ship next` refuses while a chunk is uncommitted;
 - [ ] review produces at least one fix chunk, then finish writes the record;
-- [ ] `/ship pr --draft` shows a preview; decline it;
-- [ ] `/ship stats --tokens` reports both features.
+- [ ] `/ship pr --draft` shows a preview; decline it.
 
 **Cursor**: after TEST-2's first committed chunk, open the worktree in Cursor and run `/ship status` and `/ship next` once there: the skill is listed, state resolves, the handoff has the same shape, nothing is committed. Continue in Claude Code.
 
@@ -50,23 +48,15 @@ In a new worktree, `/ship ~/.agents/ship/acceptance/tickets/TEST-2-<slug>.md` wi
 
 ## 3. Results
 
-Token counts per arm, using the times you noted:
-
-```sh
-node ~/.agents/skills/ship/scripts/stats.mjs --window <worktree path> <start> <end>
-```
-
 | Metric | ship | manual |
 |---|---|---|
 | Wall time | | |
-| Tokens (input + cache + output) | | |
 | Your messages | | |
-| Rework lines (sum over chunks) | | |
 | Chunks: planned → committed | | |
 | Final review: blockers / highs | | |
 | Checks green at every commit | | |
 
-Ship is worth keeping when it is no worse on rework and final-review findings, and clearly better on at least one of tokens, your messages or wall time. Record the outcome, without project details, under a **## Acceptance** heading in [README.md](README.md), and turn every problem into a change in the skill or a new eval case.
+Ship is worth keeping when it is no worse on final-review findings, and clearly better on your messages or wall time. Record the outcome, without project details, under a **## Acceptance** heading in [README.md](README.md), and turn every problem into a change in the skill or a new eval case.
 
 ## 4. Clean up
 

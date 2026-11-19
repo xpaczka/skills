@@ -2,7 +2,7 @@
 name: ship
 description: Ship a feature as grill → plan → small chunks the user reviews and commits → independent review, with state kept on disk between sessions.
 disable-model-invocation: true
-argument-hint: "<task text | ISSUE-ID | path.md> [--quick]  ·  next | status | review | pr | history | stats | setup | clean"
+argument-hint: "<task text | ISSUE-ID | path.md> [--quick]  ·  next | status | review | pr | history | setup | clean"
 ---
 
 # ship
@@ -11,7 +11,7 @@ You drive one feature through fixed phases while the user keeps control of every
 
 ## Hard rules
 
-- **The user commits.** Never run `git commit`, `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, or `checkout` of files. `scripts/snapshot.sh` (an unreferenced snapshot commit through a throwaway index) and `git switch -c` for a new feature branch are allowed. The only push is `/ship pr`, after the user approves the preview.
+- **The user commits.** Never run `git commit`, `amend`, `rebase`, `reset`, `push`, `stash`/`stash pop`, or `checkout` of files. `git switch -c` for a new feature branch is allowed. The only push is `/ship pr`, after the user approves the preview.
 - **Nothing lands in the repo.** Every ship file goes under `SHIP_HOME`.
 - **Tracker writes only when the state's `tracker_writes` allows them**, and preview each one before sending.
 - **Stop after every chunk.** The user reviews, commits, and runs `/ship` or `/ship next`.
@@ -24,7 +24,7 @@ Run `scripts/locate.sh` (in this skill's folder) from inside the repo, once per 
 - `SHIP_HOME` = `$SHIP_HOME`, else `~/.agents/ship`. Repo key = origin's `<owner>-<repo>` lowercased, else the repo folder name. State file = `repos/<key>/work/<branch with "/" → "-">.md`.
 - Config = global config overlaid by repo config; schema in [CONFIG-FORMAT.md](CONFIG-FORMAT.md). State schema: [STATE-FORMAT.md](STATE-FORMAT.md).
 
-If the repo config is missing, run [SETUP.md](SETUP.md) first, then continue with the requested subcommand (`status`, `clean`, `history` and `stats` do not need it).
+If the repo config is missing, run [SETUP.md](SETUP.md) first, then continue with the requested subcommand (`status`, `clean` and `history` do not need it).
 
 ## Subcommands
 
@@ -39,7 +39,6 @@ Read only the file the row names, then follow it.
 | `/ship review` | [REVIEW.md](REVIEW.md) (also starts an extra review round on request) |
 | `/ship pr [--draft \| --ready]` | [PR.md](PR.md) |
 | `/ship history [query]` | [HISTORY.md](HISTORY.md) |
-| `/ship stats` | [STATS.md](STATS.md) |
 | `/ship setup` | [SETUP.md](SETUP.md) (re-detects facts, re-asks decisions) |
 | `/ship clean [ID]` | Inline, below |
 
@@ -59,12 +58,12 @@ Print, without doing any other work: feature ID and title, branch, phase, each c
 ### clean
 
 - `/ship clean`: delete the current branch's state file. If its phase is not `done`, confirm first: this abandons the feature's live state.
-- `/ship clean <ID>`: delete that feature's record and `.metrics.json` from `records/`, after confirming.
+- `/ship clean <ID>`: delete that feature's record from `records/`, after confirming.
 - Delete only inside `SHIP_HOME`.
 
 ## Phase transitions
 
-On every phase change, set `phase` in the state frontmatter and append `- <phase> <UTC time from date -u +%FT%TZ>` to the state's **Timeline**. `/ship stats` uses the Timeline to split cost by phase.
+On every phase change, set `phase` in the state frontmatter.
 
 ## Harness capabilities
 
