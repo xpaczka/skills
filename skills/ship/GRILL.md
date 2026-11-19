@@ -14,8 +14,11 @@ Collect issue IDs the ticket links or mentions; step 4 uses them.
 
 ## 2. Branch
 
-- On `default_branch`: build the name from `branch_convention` and run `git switch -c <name>`. If the tree has uncommitted changes, ask first; they would move to the new branch.
-- On another branch: ask "Use `<branch>` as the feature branch?" If no, ask which branch to create.
+Ask where the feature runs: **New worktree** / **This checkout**. Recommend a worktree when this checkout has uncommitted changes or its branch has a state file whose phase is not `done`, so features run side by side, one session each; otherwise recommend this checkout.
+
+- **New worktree**: build the name from `branch_convention`, run `git worktree add -b <name> <repo root>/../<repo folder name>-<name> <default_branch>`, and install dependencies there with the lockfile's package manager. Enter it with the harness's worktree tool, then run `scripts/locate.sh` again, since the branch and state file changed. Without a worktree tool, run steps 3–4 for that branch (`SHIP_HOME` is shared across worktrees), then end with: "Open a session in `<path>` and run `/ship`."
+- **This checkout**, on `default_branch`: build the name from `branch_convention` and run `git switch -c <name>`. If the tree has uncommitted changes, ask first; they would move to the new branch.
+- **This checkout**, on another branch: ask "Use `<branch>` as the feature branch?" If no, ask which branch to create.
 - `base_commit` = `git merge-base HEAD <default_branch>`.
 
 ## 3. Create the state file

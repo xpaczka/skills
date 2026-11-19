@@ -11,7 +11,8 @@ remote=$(git remote get-url origin 2> /dev/null || true)
 if [ -n "$remote" ]; then
   key=$(printf '%s' "$remote" | sed -E 's#\.git$##; s#^.*[:/]([^/]+)/([^/]+)$#\1-\2#')
 else
-  key=$(basename "$root")
+  # The main checkout's folder, not this worktree's, so every worktree of the repo shares one key.
+  key=$(basename "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")")
 fi
 key=$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')
 branch=$(git branch --show-current)
