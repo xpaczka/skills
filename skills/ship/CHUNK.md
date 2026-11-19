@@ -10,11 +10,12 @@ If a chunk has `status: handed-off`:
 2. **Clean tree, HEAD moved**: the user committed.
 3. **Clean tree, HEAD unchanged**: the chunk's changes are gone. Ask: redo it, skip it, or amend the plan.
 
-After 1 or 2, set the chunk's `commit` to HEAD's short SHA and `status: committed`, and save the state file; if it came from a parallel wave, remove its worktree (2b, step 4).
+After 1 or 2, set the chunk's `commit` to HEAD's short SHA and `status: committed`, and save the state file. For a review-fix chunk with verify ids, set each of those issues' `status: fixed` in `.verify/issues.json` (the verify skill's own output, not ship's). If it came from a parallel wave, remove its worktree (2b, step 4).
 
 Then pick what runs next:
 
 - a chunk from a parallel wave is waiting (`in-progress`, its worktree from step 2b exists) → integrate it (2b, step 3);
+- a chunk is `in-progress` with no worktree (a session ended mid-chunk) → resume it at step 4;
 - otherwise the **ready** chunks are the `pending` ones whose `depends_on` chunks are all committed. Two or more ready, and the harness has subagents → run a wave (2b). Otherwise take the lowest-numbered ready chunk to step 2.
 
 If no chunk is `pending` or `in-progress`:
@@ -29,7 +30,7 @@ Set the chunk `status: in-progress`. Brief one fresh subagent for it, review-fix
 
 - the chunk entry, the **Decisions** it touches, the **Plan**'s approach and checks, and any **Amendments**;
 - the scope rule: stay inside the chunk's goal; work a later chunk or another decision covers stays out even when it seems to belong here, reported as "left for chunk K";
-- `kind: review-fix`: the findings the goal names, copied from the state's **Review**; for each verify id, read that issue from `.verify/issues.json` (its `problem`, `evidence`, `fix` and `touches`) before changing code, and set its `status: fixed` once fixed;
+- `kind: review-fix`: the findings the goal names, copied from the state's **Review**, and for each verify id the issue's `problem`, `evidence`, `fix` and `touches`, copied from `.verify/issues.json`; the subagent never reads or writes `.verify/`;
 - `tdd: yes`: Call the Skill tool with "tdd"; the seams were approved with the plan. Fallback: one failing test per behaviour through a listed seam, the minimum code to pass it, repeat; refactor only while green;
 - run the acceptance commands and checks until green; never commit, stash or reset;
 - on a **structural** deviation (below), stop and report it instead of working around it;
@@ -39,10 +40,12 @@ Without subagents, do the same inline, starting from only that brief.
 
 ## 2b. Parallel wave
 
+Not yet tested end to end; needs git 2.40 or later (`merge-tree --merge-base`).
+
 1. Take up to 3 ready chunks, lowest-numbered first, and set each `in-progress`. For each, run `git worktree add --detach SHIP_HOME/repos/<key>/worktrees/<state file name>-chunk-<N> HEAD` and install dependencies there with the lockfile's package manager.
-2. Brief one subagent per chunk at once, as in step 2, with two differences: it works only inside its worktree, and once green it commits the chunk there with its `commit_message`. That commit never touches the feature branch.
+2. Brief one subagent per chunk at once, as in step 2, with two differences: it works only inside its worktree, and once green it commits the chunk there with its `commit_message`, which overrides step 2's "never commit". That commit never touches the feature branch.
 3. Integrate in chunk order, one chunk at a time, after its subagent returns. Take `<sha>` = the worktree's HEAD; uncommitted changes there mean the subagent did not finish, so treat it as a conflict.
-   - Check for a conflict first: `git merge-tree --write-tree --merge-base <sha>^ HEAD <sha>` exits 1 on one (git 2.40 or later, for `--merge-base`). On a conflict, remove the worktree, set the chunk back to `pending`, and it runs again later in a fresh subagent on top of the branch.
+   - Check for a conflict first: `git merge-tree --write-tree --merge-base <sha>^ HEAD <sha>` exits 1 on one. On a conflict, remove the worktree, set the chunk back to `pending`, and it runs again later in a fresh subagent on top of the branch.
    - Otherwise `git cherry-pick --no-commit <sha>` puts the chunk in the working tree. Continue with step 4, then step 5, as for any chunk.
 4. Once the chunk is committed, run `git worktree remove --force <path>` (the folder holds only ship's integrated copy and installed dependencies).
 

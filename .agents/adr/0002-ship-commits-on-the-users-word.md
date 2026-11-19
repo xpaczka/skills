@@ -11,6 +11,7 @@
 - Every level still stops for grilling, plan approval, structural amendments, a blocked chunk, a failing commit hook and tracker write previews.
 - `/ship next [message]` commits the handed-off chunk (with the user's own edits) and continues.
 - Never `--no-verify`, `amend`, `rebase`, `reset` or `stash`; a failing hook stops ship.
+- In a parallel wave, each subagent commits its chunk inside its own detached worktree under `SHIP_HOME`. That commit never touches the feature branch; the main thread cherry-picks it without committing and then commits under the feature's autonomy.
 - One thread: a fresh subagent implements each chunk, the main thread re-runs the checks, and phases continue in the same turn with no `/clear`.
 
 ## Considered Options
